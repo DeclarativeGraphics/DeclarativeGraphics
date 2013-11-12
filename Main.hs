@@ -163,9 +163,22 @@ pretty (IHash expr substrings)
 
 fromRight (Right x) = x
 
+stdtp = testParse "test.syn"
 
-testParse = do
-  parsed <- parseFromFile (many1 iexpr) "test.syn"
+testParse file = do
+  parsed <- parseFromFile (many1 iexpr) file
   case parsed of
     Left err -> print err
     Right exprs -> mapM_ putStrLn $ intersperse "" $ map (show . pretty) $ exprs
+
+testRead = do
+  lines <- getMultiLine
+  case parse iexpr "<stdin>" (unlines lines) of
+    Left err -> print err
+    Right expr -> print (pretty expr)
+
+getMultiLine = do
+  line <- getLine
+  if null line
+  then return []
+  else liftM (line:) getMultiLine
