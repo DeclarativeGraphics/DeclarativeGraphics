@@ -135,10 +135,22 @@ define: id x:
 
 define: id x:= x
 
+@doc# computes the factorial of {n}
+@type {Int -> Int}
+define:
+  fac 0 := 1
+  fac n := {n * (fac {n - 1})}
+
+define: home user:=
+  markdown#
+    ## Welcome, \(user)!
+
+    Welcome back.
+
 define: main: do:
-  putStrLn hellowhat'syourname
+  putStr "Hello, what's your name?\n"
   name :<- getLine
-  helloname := {hello ++ name ++ !}
+  helloname := {"Hello, " ++ name ++ "!"}
   putStrLn helloname
 
 fail
