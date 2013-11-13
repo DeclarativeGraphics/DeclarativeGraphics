@@ -165,20 +165,26 @@ fromRight (Right x) = x
 
 stdtp = testParse "test.syn"
 
-testParse file = do
-  parsed <- parseFromFile (many1 iexpr) file
-  case parsed of
+tolerant action successAction = do
+  result <- action
+  case result of
     Left err -> print err
-    Right exprs -> mapM_ putStrLn $ intersperse "" $ map (show . pretty) $ exprs
+    Right success -> successAction success
 
-testRead = do
-  lines <- getMultiLine
-  case parse iexpr "<stdin>" (unlines lines) of
-    Left err -> print err
-    Right expr -> print (pretty expr)
+tolerantParseFile file = tolerant (parseFromFile iexpr file)
 
-getMultiLine = do
+testParse file
+  = tolerant (parseFromFile (many1 iexpr) file)
+             (mapM_ putStrLn . intersperse "" . map (show . pretty))
+
+tolerantRead = tolerant ((parse iexpr "<stdin>" . unlines) `liftM` getMultiLine)
+
+testRead = tolerantRead (print . pretty)
+
+getLinesTill endmark = do
   line <- getLine
-  if null line
+  if line == endmark
   then return []
-  else liftM (line:) getMultiLine
+  else (line:) `liftM` getLinesTill endmark
+
+getMultiLine = getLinesTill ""
