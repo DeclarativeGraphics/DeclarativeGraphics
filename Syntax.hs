@@ -1,4 +1,4 @@
-module Main where
+module Syntax where
 
 import Control.Applicative ((<*),(*>))
 import Control.Monad (liftM, liftM2, guard)
