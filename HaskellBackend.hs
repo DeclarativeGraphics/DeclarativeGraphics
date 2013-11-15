@@ -2,7 +2,7 @@ module HaskellBackend where
 
 import Syntax
 
-import Control.Monad (guard,liftM,mplus,zipWithM)
+import Control.Monad (guard,liftM,liftM2,mplus,zipWithM)
 import Data.List (intersperse,sortBy)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
@@ -10,16 +10,19 @@ import Text.PrettyPrint
 import System.FilePath (takeBaseName)
 
 
+type Name = String
+type Var = String
+
 data HSMod = HSMod [HSImport] [HSDef] deriving Show
 data HSImport = HSImport [String] deriving Show
 data HSDef = HSFuncDef [HSDecl]
-           | HSDataDef String [String] [HSDataConstr] deriving Show
-data HSDataConstr = HSDataConstr String [HSType] deriving Show
-data HSType = HSType String [HSType] | HSTypeVar String deriving Show
-data HSDecl = HSDecl String [HSPat] HSExpr deriving Show
-data HSPat = PVar String deriving Show
-data HSExpr = HSApp HSExpr HSExpr | HSVar String | HSString String | HSInt Int
-            | HSOp String deriving Show
+           | HSDataDef Name [Var] [HSDataConstr] deriving Show
+data HSDataConstr = HSDataConstr Name [HSType] deriving Show
+data HSType = HSType Name [HSType] | HSTypeVar Var deriving Show
+data HSDecl = HSDecl Name [HSPat] HSExpr deriving Show
+data HSPat = PVar Var deriving Show
+data HSExpr = HSApp HSExpr HSExpr | HSVar Var | HSString String | HSInt Int
+            | HSOp Name deriving Show
 
 prettyMod modname (HSMod imports definitions)
   = text "module" <+> text modname <+> text "where" $+$
@@ -32,7 +35,7 @@ prettyMod modname (HSMod imports definitions)
    moduleparts (HSImport modparts) = modparts
 
 prettyImport (HSImport modparts)
-  = text "import" <+> (hcat $ punctuate (char '.') $ map text modparts)
+  = text "import" <+> (hcat . punctuate (char '.') $ map text modparts)
 
 prettyDefinition (HSFuncDef declarations)
   = vcat $ map prettyDeclaration declarations
@@ -65,63 +68,91 @@ prettyExpr (HSOp operator) = parens (text operator)
 
 
 
+type Compilation = Either CompileError
+newtype CompileError = CompileError [(String,IExpr)]
 
-compileModule :: IExpr -> HSMod
+instance Show CompileError where
+  show (CompileError errors)
+    = unwords . intersperse "or" . map showErr $ errors
+   where
+     showErr (who, what) = "invalid " ++ who ++ " (" ++ show what ++ ")"
+
+
+compileError :: String -> IExpr -> Compilation a
+compileError who what = Left $ CompileError [(who,what)]
+
+(CompileError err1) `compileErrorPlus` (CompileError err2) = CompileError (err1 ++ err2)
+
+(left `orTry` right) expr = case left expr of
+  Right leftsuccess -> return leftsuccess
+  Left lefterr -> case right expr of
+    Left righterr -> Left $ lefterr `compileErrorPlus` righterr
+    Right rightsuccess -> return rightsuccess
+
+
+compileModule :: IExpr -> Compilation HSMod
 compileModule (ITreeSep "" (IGroup [IAtom "hasmod"]) body)
-  = HSMod (map compileImport $ filter importStatement body)
-          (mapMaybe compileDefinition . filter (not . importStatement) $ body)
+  = liftM2 HSMod (mapM compileImport . filter importStatement $ body)
+                 (mapM compileDefinition . filter (not . importStatement) $ body)
  where
    importStatement (ITreeSep "" (IGroup [IAtom "import"]) _) = True
    importStatement _ = False
 
-   compileDefinition expr = compileFuncDefinition expr `mplus` compileDataDefinition expr
+   compileDefinition = compileFuncDefinition `orTry` compileDataDefinition
+compileModule mod = compileError "module" mod
 
+compileImport :: IExpr -> Compilation HSImport
 compileImport (ITreeSep "" (IGroup [IAtom "import"]) [IGroup mod])
-  = HSImport (map unpack mod)
+  = HSImport `liftM` mapM unpack mod
  where
-   unpack (IAtom m) = m
+   unpack (IAtom m) = return m
+   unpack modpart   = compileError "module part" modpart
+compileImport imp = compileError "import" imp
 
-compileFuncDefinition :: IExpr -> Maybe HSDef
+compileFuncDefinition :: IExpr -> Compilation HSDef
 compileFuncDefinition (ITreeSep "" (IGroup [IAtom "define"]) equations)
-  = Just $ HSFuncDef (map compileDefEquations equations)
-compileFuncDefinition _ = Nothing
+  = HSFuncDef `liftM` mapM compileDefEquation equations
+compileFuncDefinition funcdef = compileError "function definition" funcdef
 
-compileDataDefinition :: IExpr -> Maybe HSDef
+compileDataDefinition :: IExpr -> Compilation HSDef
 compileDataDefinition (ITreeSep "" (IGroup [IAtom "define-data"])
                         [ITreeSep "=" (IGroup (IAtom typename : typeargs))
                           constructors])
-  = Just $ HSDataDef typename (map unpack typeargs) (map compileDataConstructor constructors)
+  = HSDataDef typename (map unpack typeargs) `liftM` mapM compileDataConstructor constructors
  where
    unpack (IAtom v) = v
-compileDataDefinition _ = Nothing
+compileDataDefinition datadef = compileError "data definition" datadef
 
-compileDataConstructor :: IExpr -> HSDataConstr
+compileDataConstructor :: IExpr -> Compilation HSDataConstr
 compileDataConstructor (IGroup (IAtom constrName : subtypes))
-  = HSDataConstr constrName (map compileSubtype subtypes)
+  = HSDataConstr constrName `liftM` mapM compileSubtype subtypes
  where
    compileSubtype (IList Parens (IAtom typename : typeargs))
-     = HSType typename (map compileSubtype typeargs)
-   compileSubType (IAtom var) = HSTypeVar var
+     = HSType typename `liftM` mapM compileSubtype typeargs
+   compileSubType (IAtom var) = return $ HSTypeVar var
+   compileSubType ty = compileError "type" ty
+compileDataConstructor dataconstr = compileError "data constructor" dataconstr
 
-compileDefEquations :: IExpr -> HSDecl
-compileDefEquations (ITreeSep "=" (IGroup (IAtom functionName : args)) [expr])
-  = HSDecl functionName (map compilePattern args) (compileExpr expr)
+compileDefEquation :: IExpr -> Compilation HSDecl
+compileDefEquation (ITreeSep "=" (IGroup (IAtom functionName : args)) [expr])
+  = liftM2 (HSDecl functionName) (mapM compilePattern args) (compileExpr expr)
+compileDefEquation equation = compileError "equation" equation
 
-compilePattern :: IExpr -> HSPat
-compilePattern (IAtom var) = PVar var
+compilePattern :: IExpr -> Compilation HSPat
+compilePattern (IAtom var) = return $ PVar var
+compilePattern pat = compileError "pattern" pat
 
-compileExpr :: IExpr -> HSExpr
-compileExpr (IGroup (f : args)) = multiApp (compileExpr f) (map compileExpr args)
-compileExpr (IAtom varname) = HSVar varname
-compileExpr (IString cont) = HSString cont
+compileExpr :: IExpr -> Compilation HSExpr
+compileExpr (IGroup (f : args)) = liftM2 multiApp (compileExpr f) (mapM compileExpr args)
+compileExpr (IList Parens (f : args)) = liftM2 multiApp (compileExpr f) (mapM compileExpr args)
+compileExpr (IAtom varname) = return $ HSVar varname
+compileExpr (IString cont) = return $ HSString cont
+compileExpr expr = compileError "expression" expr
 
 multiApp :: HSExpr -> [HSExpr] -> HSExpr
 multiApp = foldl HSApp
 
---definition = do
---  (_, definition) <- matchHierarchy1 (group (atom "define"))
---                                     matchDefinition
---  return definition
+
 
 testMatch matcher = tolerantRead $ \input -> case matcher input of
   Nothing -> putStrLn "No Match"
@@ -130,6 +161,15 @@ testMatch matcher = tolerantRead $ \input -> case matcher input of
 
 compileFile filename
   = tolerantParseFile filename $
-      writeFile (filebase ++ ".hs") . show . prettyMod filebase . compileModule
+      compileModule >>> eitherFailOr writeToFile
  where
    filebase = takeBaseName filename
+   writeToFile = writeFile (filebase ++ ".hs") . show . prettyMod filebase
+
+compileRead = tolerantRead $ compileModule >>> eitherFailOr (print . prettyMod "Main")
+
+
+eitherFailOr f (Left err) = print err
+eitherFailOr f (Right success) = f success
+
+(f >>> g) x = g (f x)
