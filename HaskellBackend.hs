@@ -2,6 +2,7 @@ module HaskellBackend where
 
 import Syntax
 
+import Control.Applicative
 import Control.Monad (guard,liftM,liftM2,mplus,zipWithM)
 import Data.List (intersperse,sortBy)
 import Data.Maybe (catMaybes)
@@ -13,16 +14,46 @@ import System.FilePath (takeBaseName)
 type Name = String
 type Var = String
 
+-- module ... where <import>* <definition>*
 data HSMod = HSMod [HSImport] [HSDef] deriving Show
+
+-- <import>: import module.name
 data HSImport = HSImport [String] deriving Show
+
+-- <definition>: <funcdecl>* | data <name> <var>* = <constructor>*
 data HSDef = HSFuncDef [HSDecl]
            | HSDataDef Name [Var] [HSDataConstr] deriving Show
+
+-- <constructor>: <name> <type>*
 data HSDataConstr = HSDataConstr Name [HSType] deriving Show
+
+-- <type>: <name> <type>* | <var>
 data HSType = HSType Name [HSType] | HSTypeVar Var deriving Show
+
+-- <funcdecl>: <name> <pat>* = <expr>
 data HSDecl = HSDecl Name [HSPat] HSExpr deriving Show
+
+-- <pat>: <var>
 data HSPat = PVar Var deriving Show
-data HSExpr = HSApp HSExpr HSExpr | HSVar Var | HSString String | HSInt Int
+
+-- <expr>: <expr> <expr> | <var> | <string> | <int> | <name>
+data HSExpr = HSExpr `HSApp` HSExpr | HSVar Var | HSString String | HSInt Int
             | HSOp Name deriving Show
+
+
+
+
+-------- PRETTY PRINTING ---------
+
+instance Pretty HSMod        where pretty = prettyMod "Main"
+instance Pretty HSImport     where pretty = prettyImport
+instance Pretty HSDef        where pretty = prettyDefinition
+instance Pretty HSDataConstr where pretty = prettyDataConstr
+instance Pretty HSType       where pretty = prettyType
+instance Pretty HSDecl       where pretty = prettyDeclaration
+instance Pretty HSPat        where pretty = prettyPat
+instance Pretty HSExpr       where pretty = prettyExpr
+
 
 prettyMod modname (HSMod imports definitions)
   = text "module" <+> text modname <+> text "where" $+$
@@ -41,7 +72,7 @@ prettyDefinition (HSFuncDef declarations)
   = vcat $ map prettyDeclaration declarations
 prettyDefinition (HSDataDef typename typeargs constructors)
   = text "data" <+> text typename <+> hsep (map text typeargs) <+> text "=" <+>
-    (sep . map (text "|" <+>) . map prettyDataConstr $ constructors)
+    (sep . map ((text "|" <+>) . prettyDataConstr) $ constructors)
 
 prettyDataConstr (HSDataConstr name subtypes)
   = text name <+> sep (map (parens . prettyType) subtypes)
@@ -60,7 +91,8 @@ prettyDeclaration (HSDecl name pattern expr)
 
 prettyPat (PVar varname) = text varname
 
-prettyExpr (HSApp operator operand) = sep [prettyExpr operator, nest 2 (prettyExpr operand)]
+prettyExpr (HSApp operator operand) = parens $ sep [prettyExpr operator
+                                                   ,nest 2 (prettyExpr operand)]
 prettyExpr (HSVar varname) = text varname
 prettyExpr (HSString cont) = text . show $ cont
 prettyExpr (HSInt num)     = int num
@@ -68,89 +100,158 @@ prettyExpr (HSOp operator) = parens (text operator)
 
 
 
-type Compilation = Either CompileError
-newtype CompileError = CompileError [(String,IExpr)]
 
-instance Show CompileError where
-  show (CompileError errors)
-    = unwords . intersperse "or" . map showErr $ errors
-   where
-     showErr (who, what) = "invalid " ++ who ++ " (" ++ show what ++ ")"
+------------- GENERAL COMPILATION ----------------
 
 
-compileError :: String -> IExpr -> Compilation a
-compileError who what = Left $ CompileError [(who,what)]
+data Compilation a b = CompileError [ErrorContext a] | CompileResult b
+data ErrorContext a = ErrorMessage String
+                    | ErrorSource String a
+                    | ErrorContext String [ErrorContext a]
+                    deriving Show
 
-(CompileError err1) `compileErrorPlus` (CompileError err2) = CompileError (err1 ++ err2)
+instance Functor (Compilation a) where
+  fmap f (CompileResult result) = CompileResult (f result)
+  fmap f (CompileError error)   = CompileError error
+
+instance Applicative (Compilation a) where
+  pure = CompileResult
+
+  (CompileResult f)      <*> (CompileResult arg)    = CompileResult (f arg)
+  (CompileError errors1) <*> (CompileError errors2) = CompileError (errors1 ++ errors2)
+  (CompileError errors)  <*> nonerror               = CompileError errors
+  nonerror               <*> (CompileError errors)  = CompileError errors
+
+
+getCompilation (CompileError err) = Left err
+getCompilation (CompileResult res) = Right res
+
+
+compileError :: String -> a -> Compilation a b
+compileError what source = CompileError [ErrorSource what source]
+
+simpleError :: String -> Compilation a b
+simpleError message = CompileError [ErrorMessage message]
+
+errs1 `compileErrorPlus` errs2 = errs1 ++ errs2
 
 (left `orTry` right) expr = case left expr of
-  Right leftsuccess -> return leftsuccess
-  Left lefterr -> case right expr of
-    Left righterr -> Left $ lefterr `compileErrorPlus` righterr
-    Right rightsuccess -> return rightsuccess
+  CompileError lefterr    -> case right expr of
+    CompileError righterr -> CompileError $ lefterr ++ righterr
+    rightsuccess          -> rightsuccess
+  leftsuccess             -> leftsuccess
+
+getBoth = liftA2 (,)
+
+lmany melem [] = pure []
+lmany melem (x:xs) = liftA2 (:) (melem x) (lmany melem xs)
+
+llist []     []     = pure []
+llist (m:ms) (x:xs) = liftA2 (:) (m x) (llist ms xs)
+llist []     _      = simpleError "too many elements"
+llist _      []     = simpleError "too few elements"
+
+lcons mhead mtail (x:xs) = liftA2 (,) (mhead x) (mtail xs)
+lcons _     _     []     = simpleError "expected non-empty list"
+
+withContext context (CompileResult result) = CompileResult result
+withContext context (CompileError error)   = CompileError [ErrorContext context error]
 
 
-compileModule :: IExpr -> Compilation HSMod
-compileModule (ITreeSep "" (IGroup [IAtom "hasmod"]) body)
-  = liftM2 HSMod (mapM compileImport . filter importStatement $ body)
-                 (mapM compileDefinition . filter (not . importStatement) $ body)
+
+-------------- IExpr Matching ---------------
+
+
+mAny x = pure x
+
+msatisfy pred x | pred x    = pure x
+                | otherwise = compileError "unexpected" x
+
+meq x input | input == x = pure input
+            | otherwise  = simpleError $ "expected " ++ show x ++ " but got " ++ show input
+
+matom mname (IAtom name) = withContext "atom" $ mname name
+matom mname expr         = compileError "atom" expr
+
+mstring mcont (IString cont) = withContext "string" $ mcont cont
+mstring mcont expr           = compileError "string" expr
+
+mlist mlisttype melems (IList listtype elems)
+  | mlisttype == listtype   = withContext "list" $ melems elems
+mlist _         _      expr = compileError "list" expr
+
+mgroup melems (IGroup elems) = withContext "group" $ melems elems
+mgroup melems expr           = compileError "group" expr
+
+
+mdecor mdecorator mdecorated (IDecor decorator decorated)
+  = getBoth (withContext "decorator" $ mdecorator decorator)
+            (withContext "decorated" $ mdecorated decorated)
+mdecor _          _          expr
+  = compileError "decor" expr
+
+
+mtree mroot mleaves (ITree root leaves)
+  = withContext "tree" $
+      getBoth (withContext "root"   $ mroot root)
+              (withContext "leaves" $ mleaves leaves)
+mtree _     _       expr
+  = compileError "tree" expr
+
+
+mtreesep mroot msep mleaves (ITreeSep sep root leaves)
+  = withContext "treesep" $
+      liftA3 (,,) (withContext "root"   $ mroot root)
+                  (withContext "sep"    $ msep (':' : sep))
+                  (withContext "leaves" $ mleaves leaves)
+mtreesep _     _    _       expr
+  = compileError "treesep" expr
+
+
+mhash mexpr mcontent (IHash expr content)
+  = withContext "hash" $ getBoth (withContext "expr"    $ mexpr expr)
+                                 (withContext "content" $ mcontent content)
+mhash _     _        expr
+  = compileError "hash" expr
+
+
+
+
+--------------- HASMOD Compilation --------------
+
+{-
+iModule = uncurry HSMod . partitionEithers `liftA` iModuleExpr
+  where
+    iModuleExpr = mtreesep' (matom $ meq "hasmod") ":"
+                            (lmany iModuleBodyStatement)
+    iModuleBodyStatement = liftA Left iImport `orTry` liftA Right iDefinition
+-}
+
+iDecl = liftA declaration . mtreesep' iSignature ":=" (llist [iExpr])
  where
-   importStatement (ITreeSep "" (IGroup [IAtom "import"]) _) = True
-   importStatement _ = False
+   iSignature = mgroup $ matom mAny `lcons` lmany iPat
+   declaration ((name,args), [body]) = HSDecl name args body
 
-   compileDefinition = compileFuncDefinition `orTry` compileDataDefinition
-compileModule mod = compileError "module" mod
+iPat = liftA PVar . matom mAny
 
-compileImport :: IExpr -> Compilation HSImport
-compileImport (ITreeSep "" (IGroup [IAtom "import"]) [IGroup mod])
-  = HSImport `liftM` mapM unpack mod
+iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
  where
-   unpack (IAtom m) = return m
-   unpack modpart   = compileError "module part" modpart
-compileImport imp = compileError "import" imp
+   iAppGroup = liftA (foldl1 HSApp) . mgroup (lmany iExpr)
 
-compileFuncDefinition :: IExpr -> Compilation HSDef
-compileFuncDefinition (ITreeSep "" (IGroup [IAtom "define"]) equations)
-  = HSFuncDef `liftM` mapM compileDefEquation equations
-compileFuncDefinition funcdef = compileError "function definition" funcdef
+   iAppTree  = liftA (uncurry (foldl HSApp)) . (mSimpleTree `orTry` mAppSepTree)
+   mSimpleTree = mtree iExpr (lmany iExpr)
+   mAppSepTree = mtreesep' iExpr ":-" (lmany iExpr)
 
-compileDataDefinition :: IExpr -> Compilation HSDef
-compileDataDefinition (ITreeSep "" (IGroup [IAtom "define-data"])
-                        [ITreeSep "=" (IGroup (IAtom typename : typeargs))
-                          constructors])
-  = HSDataDef typename (map unpack typeargs) `liftM` mapM compileDataConstructor constructors
+   iString   = liftA HSString . mstring mAny
+
+   iVariable = liftA HSVar . matom mAny
+
+
+-- this function name is very bad
+mtreesep' mroot seperator mbody = liftA extractTree . mtreesep mroot (meq seperator) mbody
  where
-   unpack (IAtom v) = v
-compileDataDefinition datadef = compileError "data definition" datadef
+   extractTree (root,seperator,body) = (root,body)
 
-compileDataConstructor :: IExpr -> Compilation HSDataConstr
-compileDataConstructor (IGroup (IAtom constrName : subtypes))
-  = HSDataConstr constrName `liftM` mapM compileSubtype subtypes
- where
-   compileSubtype (IList Parens (IAtom typename : typeargs))
-     = HSType typename `liftM` mapM compileSubtype typeargs
-   compileSubType (IAtom var) = return $ HSTypeVar var
-   compileSubType ty = compileError "type" ty
-compileDataConstructor dataconstr = compileError "data constructor" dataconstr
-
-compileDefEquation :: IExpr -> Compilation HSDecl
-compileDefEquation (ITreeSep "=" (IGroup (IAtom functionName : args)) [expr])
-  = liftM2 (HSDecl functionName) (mapM compilePattern args) (compileExpr expr)
-compileDefEquation equation = compileError "equation" equation
-
-compilePattern :: IExpr -> Compilation HSPat
-compilePattern (IAtom var) = return $ PVar var
-compilePattern pat = compileError "pattern" pat
-
-compileExpr :: IExpr -> Compilation HSExpr
-compileExpr (IGroup (f : args)) = liftM2 multiApp (compileExpr f) (mapM compileExpr args)
-compileExpr (IList Parens (f : args)) = liftM2 multiApp (compileExpr f) (mapM compileExpr args)
-compileExpr (IAtom varname) = return $ HSVar varname
-compileExpr (IString cont) = return $ HSString cont
-compileExpr expr = compileError "expression" expr
-
-multiApp :: HSExpr -> [HSExpr] -> HSExpr
-multiApp = foldl HSApp
 
 
 
@@ -159,14 +260,19 @@ testMatch matcher = tolerantRead $ \input -> case matcher input of
   Just x  -> putStrLn "Match:" >> print (pretty x)
   
 
-compileFile filename
+{-
+compileModule filename
   = tolerantParseFile filename $
-      compileModule >>> eitherFailOr writeToFile
+      iModule >>> eitherFailOr writeToFile
  where
    filebase = takeBaseName filename
    writeToFile = writeFile (filebase ++ ".hs") . show . prettyMod filebase
+-}
 
-compileRead = tolerantRead $ compileModule >>> eitherFailOr (print . prettyMod "Main")
+compileRead compiler = tolerantRead $ compiler >>> getCompilation >>> eitherFailOr prettyPrint
+
+prettyPrint :: Pretty a => a -> IO ()
+prettyPrint = print . pretty
 
 
 eitherFailOr f (Left err) = print err
