@@ -2,8 +2,9 @@ module HaskellBackend where
 
 import Syntax
 
-import Control.Applicative
+import Control.Applicative (Applicative(..),liftA,liftA2,liftA3)
 import Control.Monad (guard,liftM,liftM2,mplus,zipWithM)
+import Data.Either (partitionEithers)
 import Data.List (intersperse,sortBy)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
@@ -71,15 +72,18 @@ prettyImport (HSImport modparts)
 prettyDefinition (HSFuncDef declarations)
   = vcat $ map prettyDeclaration declarations
 prettyDefinition (HSDataDef typename typeargs constructors)
-  = text "data" <+> text typename <+> hsep (map text typeargs) <+> text "=" <+>
-    (sep . map ((text "|" <+>) . prettyDataConstr) $ constructors)
+  = text "data" <+> text typename <+> hsep (map text typeargs) <+>
+    if null constructors
+    then empty
+    else sep (text "=" <+> prettyDataConstr (head constructors)
+             :map ((text "|" <+>) . prettyDataConstr) (tail constructors))
 
 prettyDataConstr (HSDataConstr name subtypes)
-  = text name <+> sep (map (parens . prettyType) subtypes)
+  = text name <+> sep (map prettyType subtypes)
 
 prettyType (HSType typename subtypes)
-  = text typename <+> sep (map (parens . prettyType) subtypes)
-prettyTYpe (HSTypeVar var)
+  = parens $ text typename <+> sep (map prettyType subtypes)
+prettyType (HSTypeVar var)
   = text var
 
 
@@ -145,6 +149,8 @@ getBoth = liftA2 (,)
 
 lmany melem [] = pure []
 lmany melem (x:xs) = liftA2 (:) (melem x) (lmany melem xs)
+
+lmany1 msub = liftA (uncurry (:)) . (msub `lcons` lmany msub)
 
 llist []     []     = pure []
 llist (m:ms) (x:xs) = liftA2 (:) (m x) (llist ms xs)
@@ -219,13 +225,42 @@ mhash _     _        expr
 
 --------------- HASMOD Compilation --------------
 
-{-
-iModule = uncurry HSMod . partitionEithers `liftA` iModuleExpr
+iModule = liftA (uncurry HSMod . partitionEithers . snd) . iModuleExpr
   where
-    iModuleExpr = mtreesep' (matom $ meq "hasmod") ":"
+    iModuleExpr = mtreesep' (msimplegroup ["hasmod"]) ":"
                             (lmany iModuleBodyStatement)
-    iModuleBodyStatement = liftA Left iImport `orTry` liftA Right iDefinition
--}
+    iModuleBodyStatement = (liftA Left . iImport) `orTry` (liftA Right . iDefinition)
+
+iImport = liftA hsImport . mImport
+ where
+   mImport = mtreesep' (msimplegroup ["import"]) ":" (llist [mgroup (lmany (matom mAny))])
+   hsImport (_,[moduleparts]) = HSImport moduleparts
+
+iDefinition = iDefFunc `orTry` iDefData
+
+iDefFunc = liftA (HSFuncDef . snd) . mFuncDef
+ where
+   mFuncDef = mtreesep' (msimplegroup ["define"]) ":" (lmany iDecl)
+
+iDefData = liftA datadef . mDataDef
+ where
+   mDataDef = mtreesep' (mgroup (matom (meq "define-data") `lcons` lmany (matom mAny))) ":"
+                        (lmany iDataConstr)
+   datadef ((_, name : typevars), constructors) = HSDataDef name typevars constructors
+
+iDataConstr = liftA dataconstr . mDataConstr
+ where
+   mDataConstr = msomegroup (matom mAny `lcons` lmany iType)
+   dataconstr (name,types) = HSDataConstr name types
+
+iType = (liftA hsType . mType) `orTry` (liftA HSTypeVar . mTypeVar)
+ where
+   mType = msingle (mlist Parens (matom mAny `lcons` lmany iType))
+           `orTry` mgroup (matom mAny `lcons` lmany1 iType)
+   mTypeVar = msingle (matom mAny)
+
+   hsType (name, subtypes) = HSType name subtypes
+
 
 iDecl = liftA declaration . mtreesep' iSignature ":=" (llist [iExpr])
  where
@@ -251,6 +286,11 @@ iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
 mtreesep' mroot seperator mbody = liftA extractTree . mtreesep mroot (meq seperator) mbody
  where
    extractTree (root,seperator,body) = (root,body)
+
+msomegroup msub = mgroup msub `orTry` mlist Parens msub
+msimplegroup atomnames = mgroup . llist . map (matom . meq) $ atomnames
+
+msingle msub = (liftA head . mgroup (llist [msub])) `orTry` msub
 
 
 
