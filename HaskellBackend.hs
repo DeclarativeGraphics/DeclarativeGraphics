@@ -323,11 +323,6 @@ msingle msub = (liftA head . mgroup (llist [msub])) `orTry` msub
 
 
 
-testMatch matcher = tolerantRead $ \input -> case matcher input of
-  Nothing -> putStrLn "No Match"
-  Just x  -> putStrLn "Match:" >> print (pretty x)
-  
-
 compileModule filename
   = tolerantParseFile filename $
       iModule >>> getCompilation >>> eitherFailOr writeToFile
