@@ -328,14 +328,18 @@ testMatch matcher = tolerantRead $ \input -> case matcher input of
   Just x  -> putStrLn "Match:" >> print (pretty x)
   
 
-{-
 compileModule filename
   = tolerantParseFile filename $
-      iModule >>> eitherFailOr writeToFile
+      iModule >>> getCompilation >>> eitherFailOr writeToFile
  where
    filebase = takeBaseName filename
    writeToFile = writeFile (filebase ++ ".hs") . show . prettyMod filebase
--}
+
+compileModulePrint filename
+  = tolerantParseFile filename $
+      iModule >>> getCompilation >>> eitherFailOr (print . prettyMod filebase)
+ where
+   filebase = takeBaseName filename
 
 compileRead compiler = tolerantRead $ compiler >>> getCompilation >>> eitherFailOr prettyPrint
 
