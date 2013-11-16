@@ -253,16 +253,18 @@ mhash _     _        expr
 
 --------------- HASMOD Compilation --------------
 
-iModule = liftA (uncurry HSMod . partitionEithers . snd) . iModuleExpr
+iModule = liftA (hsMod . partitionEithers . snd) . iModuleExpr
   where
     iModuleExpr = mtreesep' (msimplegroup ["hasmod"]) ":"
                             (lmany iModuleBodyStatement)
     iModuleBodyStatement = (liftA Left . iImport) `orTry` (liftA Right . iDefinition)
+    hsMod (importGroups, definitions) = HSMod (concat importGroups) definitions
 
 iImport = liftA hsImport . mImport
  where
-   mImport = mtreesep' (msimplegroup ["import"]) ":" (llist [mgroup (lmany (matom mAny))])
-   hsImport (_,[moduleparts]) = HSImport moduleparts
+   mImport = mtreesep' (msimplegroup ["import"]) ":" (lmany . mgroup $ mModulePath)
+   mModulePath = lmany (matom mAny)
+   hsImport (_,modules) = map HSImport modules
 
 iDefinition = iDefFunc `orTry` iDefData
 
