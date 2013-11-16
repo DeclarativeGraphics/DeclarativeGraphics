@@ -1,15 +1,15 @@
 module Syntax where
 
+import Pretty
+
 import Control.Applicative ((<*),(*>))
 import Control.Monad (liftM, liftM2, guard)
 
-import Data.List (intersperse,dropWhileEnd)
+import Data.List (dropWhileEnd)
 import Data.Maybe (fromMaybe)
 
 import Text.Parsec
-import Text.Parsec.Char
 import Text.Parsec.String
-import Text.Parsec.Combinator
 
 import Text.PrettyPrint hiding (char)
 
@@ -72,7 +72,7 @@ line = do
    hash root = do
      char '#'
      horizspaces
-     liftM (IHash root) $ spaces >> getColumn >>= substrings
+     liftM (IHash root) $ spaces >> getColumn >>= sublines
     where
       parseLine = many (noneOf "\n") <* newline
       substrings indent
@@ -132,10 +132,6 @@ getColumn = liftM sourceColumn getPosition
 
 
 
-class Pretty a where
-  pretty :: a -> Doc
-
-
 instance Pretty IExpr where
   pretty (IAtom cont) = text cont
   pretty (IString cont) = text $ show cont
@@ -157,38 +153,3 @@ instance Pretty IExpr where
   pretty (IHash expr substrings)
     = text "Hash" <+> parens (pretty expr) $+$
       nest 2 (vcat $ map text substrings)
-
-
-
-
-
--- HELPER
---
-
-fromRight (Right x) = x
-
-stdtp = testParse "test.syn"
-
-tolerant action successAction = do
-  result <- action
-  case result of
-    Left err -> print err
-    Right success -> successAction success
-
-tolerantParseFile file = tolerant (parseFromFile iexpr file)
-
-testParse file
-  = tolerant (parseFromFile (many1 iexpr) file)
-             (mapM_ putStrLn . intersperse "" . map (show . pretty))
-
-tolerantRead = tolerant ((parse iexpr "<stdin>" . unlines) `liftM` getMultiLine)
-
-testRead = tolerantRead (print . pretty)
-
-getLinesTill endmark = do
-  line <- getLine
-  if line == endmark
-  then return []
-  else (line:) `liftM` getLinesTill endmark
-
-getMultiLine = getLinesTill ""
