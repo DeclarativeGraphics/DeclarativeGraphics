@@ -6,7 +6,7 @@ import Control.Applicative (Applicative(..),liftA,liftA2,liftA3)
 import Control.Monad (guard,liftM,liftM2,mplus,zipWithM)
 import Data.Either (partitionEithers)
 import Data.List (intersperse,sortBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes,fromMaybe)
 import Data.Ord (comparing)
 import Text.PrettyPrint
 import System.FilePath (takeBaseName)
@@ -97,10 +97,38 @@ prettyPat (PVar varname) = text varname
 
 prettyExpr (HSApp operator operand) = parens $ sep [prettyExpr operator
                                                    ,nest 2 (prettyExpr operand)]
-prettyExpr (HSVar varname) = text varname
+prettyExpr (HSVar varname) = hsVar varname
 prettyExpr (HSString cont) = text . show $ cont
 prettyExpr (HSInt num)     = int num
 prettyExpr (HSOp operator) = parens (text operator)
+
+
+hsVar varname = if hsOperator varname
+                then parens . text $ varname
+                else text . hsEscape $ varname
+
+hsOperator = all operatorChar
+ where
+   operatorChar = (`elem` ":.,$<>+-*/%&^=?!~|#")
+
+hsEscape = concatMap escapeChar
+ where
+   escapeChar c = fromMaybe [c] $ lookup c escapetable
+   escapetable = [('-', "_minus_")
+                 ,('+', "_plus_")
+                 ,('*', "_star_")
+                 ,('/', "_slash_")
+                 ,('%', "_percent_")
+                 ,('&', "_ampersand_")
+                 ,('^', "_caret_")
+                 ,('=', "_equals_")
+                 ,('?', "_quest_")
+                 ,('!', "_bang_")
+                 ,('~', "_tilde_")
+                 ,('|', "_bar_")
+                 ,('#', "_hash_")
+                 --,('_', "_underscore_")
+                 ]
 
 
 
@@ -271,7 +299,7 @@ iPat = liftA PVar . matom mAny
 
 iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
  where
-   iAppGroup = liftA (foldl1 HSApp) . mgroup (lmany iExpr)
+   iAppGroup = liftA (foldl1 HSApp) . msomegroup (lmany iExpr)
 
    iAppTree  = liftA (uncurry (foldl HSApp)) . (mSimpleTree `orTry` mAppSepTree)
    mSimpleTree = mtree iExpr (lmany iExpr)
