@@ -1,6 +1,5 @@
 module Backends.Haskell.Compiler where
 
-import Compilation
 import MatchIExpr
 import Syntax
 
@@ -12,72 +11,72 @@ import Data.Either (partitionEithers)
 
 --------------- HASMOD Compilation --------------
 
-iModule = liftA (hsMod . partitionEithers . snd) . iModuleExpr
+iModule = liftA (hsMod . partitionEithers . snd) iModuleExpr
   where
-    iModuleExpr = mtreesep' (msimplegroup ["hasmod"]) ":"
-                            (lmany iModuleBodyStatement)
-    iModuleBodyStatement = (liftA Left . iImport) `orTry` (liftA Right . iDefinition)
+    iModuleExpr = mTreeSep' (msimplegroup ["hasmod"]) ":"
+                            (lMany iModuleBodyStatement)
+    iModuleBodyStatement = (liftA Left iImport) `orTry` (liftA Right iDefinition)
     hsMod (importGroups, definitions) = HSMod (concat importGroups) definitions
 
-iImport = liftA hsImport . mImport
+iImport = liftA hsImport mImport
  where
-   mImport = mtreesep' (msimplegroup ["import"]) ":" (lmany . mgroup $ mModulePath)
-   mModulePath = lmany (matom mAny)
+   mImport = mTreeSep' (msimplegroup ["import"]) ":" (lMany . mGroup $ mModulePath)
+   mModulePath = lMany (mAtom mAny)
    hsImport (_,modules) = map HSImport modules
 
 iDefinition = iDefFunc `orTry` iDefData
 
-iDefFunc = liftA (HSFuncDef . snd) . mFuncDef
+iDefFunc = liftA (HSFuncDef . snd) mFuncDef
  where
-   mFuncDef = mtreesep' (msimplegroup ["define"]) ":" (lmany iDecl)
+   mFuncDef = mTreeSep' (msimplegroup ["define"]) ":" (lMany iDecl)
 
-iDefData = liftA datadef . mDataDef
+iDefData = liftA datadef mDataDef
  where
-   mDataDef = mtreesep' (mgroup (matom (meq "define-data") `lcons` lmany (matom mAny))) ":"
-                        (lmany iDataConstr)
+   mDataDef = mTreeSep' (mGroup (mAtom (mEq "define-data") `lCons` lMany (mAtom mAny))) ":"
+                        (lMany iDataConstr)
    datadef ((_, name : typevars), constructors) = HSDataDef name typevars constructors
 
-iDataConstr = liftA dataconstr . mDataConstr
+iDataConstr = liftA dataconstr mDataConstr
  where
-   mDataConstr = msomegroup (matom mAny `lcons` lmany iType)
+   mDataConstr = msomegroup (mAtom mAny `lCons` lMany iType)
    dataconstr (name,types) = HSDataConstr name types
 
-iType = (liftA hsType . mType) `orTry` (liftA HSTypeVar . mTypeVar)
+iType = (liftA hsType mType) `orTry` (liftA HSTypeVar mTypeVar)
  where
-   mType = msingle (mlist Parens (matom mAny `lcons` lmany iType))
-           `orTry` mgroup (matom mAny `lcons` lmany1 iType)
-   mTypeVar = msingle (matom mAny)
+   mType = msingle (mList Parens (mAtom mAny `lCons` lMany iType))
+           `orTry` mGroup (mAtom mAny `lCons` lMany1 iType)
+   mTypeVar = msingle (mAtom mAny)
 
    hsType (name, subtypes) = HSType name subtypes
 
 
-iDecl = liftA declaration . mtreesep' iSignature ":=" (llist [iExpr])
+iDecl = liftA declaration $ mTreeSep' iSignature ":=" (lList [iExpr])
  where
-   iSignature = mgroup $ matom mAny `lcons` lmany iPat
+   iSignature = mGroup $ mAtom mAny `lCons` lMany iPat
    declaration ((name,args), [body]) = HSDecl name args body
 
-iPat = liftA PVar . matom mAny
+iPat = liftA PVar $ mAtom mAny
 
 iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
  where
-   iAppGroup = liftA (foldl1 HSApp) . msomegroup (lmany iExpr)
+   iAppGroup = liftA (foldl1 HSApp) $ msomegroup (lMany iExpr)
 
-   iAppTree  = liftA (uncurry (foldl HSApp)) . (mSimpleTree `orTry` mAppSepTree)
-   mSimpleTree = mtree iExpr (lmany iExpr)
-   mAppSepTree = mtreesep' iExpr ":-" (lmany iExpr)
+   iAppTree  = liftA (uncurry (foldl HSApp)) (mSimpleTree `orTry` mAppSepTree)
+   mSimpleTree = mTree iExpr (lMany iExpr)
+   mAppSepTree = mTreeSep' iExpr ":-" (lMany iExpr)
 
-   iString   = liftA HSString . mstring mAny
+   iString   = liftA HSString $ mString mAny
 
-   iVariable = liftA HSVar . matom mAny
+   iVariable = liftA HSVar $ mAtom mAny
 
 
 -- this function name is very bad
-mtreesep' mroot seperator mbody = liftA extractTree . mtreesep mroot (meq seperator) mbody
+mTreeSep' mroot seperator mbody = liftA extractTree $ mTreeSep mroot (mEq seperator) mbody
  where
    extractTree (root,seperator,body) = (root,body)
 
-msomegroup msub = mgroup msub `orTry` mlist Parens msub
-msimplegroup atomnames = mgroup . llist . map (matom . meq) $ atomnames
+msomegroup msub = mGroup msub `orTry` mList Parens msub
+msimplegroup atomnames = mGroup . lList . map (mAtom . mEq) $ atomnames
 
-msingle msub = (liftA head . mgroup (llist [msub])) `orTry` msub
+msingle msub = liftA head (mGroup (lList [msub])) `orTry` msub
 

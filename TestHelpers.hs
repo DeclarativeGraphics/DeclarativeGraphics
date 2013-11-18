@@ -47,18 +47,18 @@ getMultiLine = getLinesTill ""
 
 compileModule filename
   = tolerantParseFile filename $
-      iModule >>> getCompilation >>> eitherFailOr writeToFile
+      match iModule >>> eitherFailOr writeToFile
  where
    filebase = takeBaseName filename
    writeToFile = writeFile (filebase ++ ".hs") . show . prettyMod filebase
 
 compileModulePrint filename
   = tolerantParseFile filename $
-      iModule >>> getCompilation >>> eitherFailOr (print . prettyMod filebase)
+      match iModule >>> eitherFailOr (print . prettyMod filebase)
  where
    filebase = takeBaseName filename
 
-compileRead compiler = tolerantRead $ compiler >>> getCompilation >>> eitherFailOr prettyPrint
+compileRead compiler = tolerantRead $ match compiler >>> eitherFailOr prettyPrint
 
 prettyPrint :: Pretty a => a -> IO ()
 prettyPrint = print . pretty

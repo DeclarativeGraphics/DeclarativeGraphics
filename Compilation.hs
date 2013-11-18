@@ -1,63 +1,49 @@
 module Compilation where
 
-import Control.Applicative (Applicative(..),liftA,liftA2)
+import Control.Applicative (Applicative(..))
+import Data.Monoid (Monoid(..))
 
 
 ------------- GENERAL COMPILATION ----------------
 
 
-data Compilation a b = CompileError [ErrorContext a] | CompileResult b
-data ErrorContext a = ErrorMessage String
-                    | ErrorSource String a
-                    | ErrorContext String [ErrorContext a]
-                    deriving Show
-
-instance Functor (Compilation a) where
-  fmap f (CompileResult result) = CompileResult (f result)
-  fmap f (CompileError error)   = CompileError error
-
-instance Applicative (Compilation a) where
-  pure = CompileResult
-
-  (CompileResult f)      <*> (CompileResult arg)    = CompileResult (f arg)
-  (CompileError errors1) <*> (CompileError errors2) = CompileError (errors1 ++ errors2)
-  (CompileError errors)  <*> nonerror               = CompileError errors
-  nonerror               <*> (CompileError errors)  = CompileError errors
+newtype Matcher i e a = M (i -> Result e a)
+data Result e s = Error e | Success s
 
 
-getCompilation (CompileError err) = Left err
-getCompilation (CompileResult res) = Right res
+instance Functor (Matcher i e) where
+  fmap f (M matcher) = M (fmap f . matcher)
+
+instance Monoid e => Applicative (Matcher i e) where
+  pure = M . const . pure
+  (M f) <*> (M arg) = M (\input -> f input <*> arg input)
 
 
-compileError :: String -> a -> Compilation a b
-compileError what source = CompileError [ErrorSource what source]
 
-simpleError :: String -> Compilation a b
-simpleError message = CompileError [ErrorMessage message]
+instance Functor (Result e) where
+  fmap f (Success success) = Success (f success)
+  fmap f (Error error)     = Error error
 
-errs1 `compileErrorPlus` errs2 = errs1 ++ errs2
+instance Monoid e => Applicative (Result e) where
+  pure = Success
 
-(left `orTry` right) expr = case left expr of
-  CompileError lefterr    -> case right expr of
-    CompileError righterr -> CompileError $ lefterr ++ righterr
-    rightsuccess          -> rightsuccess
-  leftsuccess             -> leftsuccess
+  (Success f)     <*> (Success arg)   = Success (f arg)
+  (Error errors1) <*> (Error errors2) = Error (errors1 `mappend` errors2)
+  (Error errors)  <*> nonerror        = Error errors
+  nonerror        <*> (Error errors)  = Error errors
 
-getBoth :: Applicative f => f a -> f b -> f (a, b)
-getBoth = liftA2 (,)
 
-lmany melem [] = pure []
-lmany melem (x:xs) = liftA2 (:) (melem x) (lmany melem xs)
 
-lmany1 msub = liftA (uncurry (:)) . (msub `lcons` lmany msub)
 
-llist []     []     = pure []
-llist (m:ms) (x:xs) = liftA2 (:) (m x) (llist ms xs)
-llist []     _      = simpleError "too many elements"
-llist _      []     = simpleError "too few elements"
+transform1 matcher submatcher = M . matcher $ runMatch submatcher
+transform2 matcher subm0 subm1 = M $ matcher (runMatch subm0) (runMatch subm1)
+transform3 matcher subm0 subm1 subm2
+  = M $ matcher (runMatch subm0) (runMatch subm1) (runMatch subm2)
 
-lcons mhead mtail (x:xs) = liftA2 (,) (mhead x) (mtail xs)
-lcons _     _     []     = simpleError "expected non-empty list"
 
-withContext context (CompileResult result) = CompileResult result
-withContext context (CompileError error)   = CompileError [ErrorContext context error]
+
+runMatch (M matcher) = matcher
+match matcher = getResult . runMatch matcher
+
+getResult (Error err)    = Left err
+getResult (Success succ) = Right succ
