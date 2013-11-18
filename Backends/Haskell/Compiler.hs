@@ -15,7 +15,7 @@ iModule = liftA (hsMod . partitionEithers . snd) iModuleExpr
   where
     iModuleExpr = mTreeSep' (msimplegroup ["hasmod"]) ":"
                             (lMany iModuleBodyStatement)
-    iModuleBodyStatement = (liftA Left iImport) `orTry` (liftA Right iDefinition)
+    iModuleBodyStatement = liftA Left iImport `orTry` liftA Right iDefinition
     hsMod (importGroups, definitions) = HSMod (concat importGroups) definitions
 
 iImport = liftA hsImport mImport
@@ -41,7 +41,7 @@ iDataConstr = liftA dataconstr mDataConstr
    mDataConstr = msomegroup (mAtom mAny `lCons` lMany iType)
    dataconstr (name,types) = HSDataConstr name types
 
-iType = (liftA hsType mType) `orTry` (liftA HSTypeVar mTypeVar)
+iType = liftA hsType mType `orTry` liftA HSTypeVar mTypeVar
  where
    mType = msingle (mList Parens (mAtom mAny `lCons` lMany iType))
            `orTry` mGroup (mAtom mAny `lCons` lMany1 iType)
