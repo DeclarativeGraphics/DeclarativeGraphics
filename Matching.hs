@@ -1,10 +1,7 @@
-module Compilation where
+module Matching where
 
 import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..))
-
-
-------------- GENERAL COMPILATION ----------------
 
 
 newtype Matcher i e a = M (i -> Result e a)
