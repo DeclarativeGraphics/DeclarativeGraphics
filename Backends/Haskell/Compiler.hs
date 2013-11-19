@@ -21,7 +21,7 @@ iModule = liftA (hsMod . partitionEithers . snd) iModuleExpr
 iImport = liftA hsImport mImport
  where
    mImport = mTreeSep' (msimplegroup ["import"]) ":" (lMany . mGroup $ mModulePath)
-   mModulePath = lMany (mAtom mAny)
+   mModulePath = lMany (mSymbol mAny)
    hsImport (_,modules) = map HSImport modules
 
 iDefinition = iDefFunc `orTry` iDefData
@@ -32,30 +32,30 @@ iDefFunc = liftA (HSFuncDef . snd) mFuncDef
 
 iDefData = liftA datadef mDataDef
  where
-   mDataDef = mTreeSep' (mGroup (mAtom (mEq "define-data") `lCons` lMany (mAtom mAny))) ":"
+   mDataDef = mTreeSep' (mGroup (mSymbol (mEq "define-data") `lCons` lMany (mSymbol mAny))) ":"
                         (lMany iDataConstr)
    datadef ((_, name : typevars), constructors) = HSDataDef name typevars constructors
 
 iDataConstr = liftA dataconstr mDataConstr
  where
-   mDataConstr = msomegroup (mAtom mAny `lCons` lMany iType)
+   mDataConstr = msomegroup (mSymbol mAny `lCons` lMany iType)
    dataconstr (name,types) = HSDataConstr name types
 
 iType = liftA hsType mType `orTry` liftA HSTypeVar mTypeVar
  where
-   mType = msingle (mList Parens (mAtom mAny `lCons` lMany iType))
-           `orTry` mGroup (mAtom mAny `lCons` lMany1 iType)
-   mTypeVar = msingle (mAtom mAny)
+   mType = msingle (mList Parens (mSymbol mAny `lCons` lMany iType))
+           `orTry` mGroup (mSymbol mAny `lCons` lMany1 iType)
+   mTypeVar = msingle (mSymbol mAny)
 
    hsType (name, subtypes) = HSType name subtypes
 
 
 iDecl = liftA declaration $ mTreeSep' iSignature ":=" (lList [iExpr])
  where
-   iSignature = mGroup $ mAtom mAny `lCons` lMany iPat
+   iSignature = mGroup $ mSymbol mAny `lCons` lMany iPat
    declaration ((name,args), [body]) = HSDecl name args body
 
-iPat = liftA PVar $ mAtom mAny
+iPat = liftA PVar $ mSymbol mAny
 
 iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
  where
@@ -67,7 +67,7 @@ iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
 
    iString   = liftA HSString $ mString mAny
 
-   iVariable = liftA HSVar $ mAtom mAny
+   iVariable = liftA HSVar $ mSymbol mAny
 
 
 -- this function name is very bad
@@ -76,7 +76,7 @@ mTreeSep' mroot seperator mbody = liftA extractTree $ mTreeSep mroot (mEq sepera
    extractTree (root,seperator,body) = (root,body)
 
 msomegroup msub = mGroup msub `orTry` mList Parens msub
-msimplegroup atomnames = mGroup . lList . map (mAtom . mEq) $ atomnames
+msimplegroup atomnames = mGroup . lList . map (mSymbol . mEq) $ atomnames
 
 msingle msub = liftA head (mGroup (lList [msub])) `orTry` msub
 

@@ -17,7 +17,7 @@ module MatchIExpr (
     simpleError,
     withContext,
 
-    mAtom,
+    mSymbol,
     mString,
     mGroup,
     mList,
@@ -105,8 +105,8 @@ _satisfy pred x | pred x    = pure x
 _eq x input | input == x = pure input
             | otherwise  = simpleError $ "expected " ++ show x ++ " but got " ++ show input
 
-_atom mname (IAtom name) = withContext "atom" $ mname name
-_atom mname expr         = sourceError "atom" expr
+_symbol mname (ISymbol name) = withContext "symbol" $ mname name
+_symbol mname expr           = sourceError "symbol" expr
 
 _string mcont (IString cont) = withContext "string" $ mcont cont
 _string mcont expr           = sourceError "string" expr
@@ -160,8 +160,8 @@ mSatisfy pred = M $ _satisfy pred
 mEq :: (Eq i, Show i) => i -> Matcher i IExprError i
 mEq x = M $ _eq x
 
-mAtom :: Matcher String IExprError a -> IExprMatcher a
-mAtom = transform1 _atom
+mSymbol :: Matcher String IExprError a -> IExprMatcher a
+mSymbol = transform1 _symbol
 
 mString :: Matcher String IExprError a -> IExprMatcher a
 mString = transform1 _string
