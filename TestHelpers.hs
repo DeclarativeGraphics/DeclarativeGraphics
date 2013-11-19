@@ -1,6 +1,6 @@
 module TestHelpers where
 
-import Compilation
+import Matching
 import Pretty
 import Syntax
 
