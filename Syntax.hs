@@ -27,100 +27,125 @@ data IExpr = IAtom String
 data ParenType = Parens | Brackets | Braces deriving (Show, Eq)
 
 
+
 atom :: Parser IExpr
 atom = liftM IAtom $ many1 $ noneOf delimiters
 
 stringexpr :: Parser IExpr
-stringexpr = do
-  char '"'
-  content <- many $ (char '\\' *> escapedChar) <|> noneOf "\""
-  char '"'
-  return $ IString content
+stringexpr = IString `liftM` (char '"' *> escapedLiteralParser '\\' escape "\"" <* char '"')
  where
-   escapedChar = liftM escape anyChar
    escape c = fromMaybe c $ lookup c escapeTable
    escapeTable = zip "trn" "\t\r\n"
 
+
+escapedLiteralParser escChar escape delimiters
+  = many $ (char escChar *> escapedChar) <|> noneOf delimiters
+ where
+   escapedChar = liftM escape anyChar
+
+
 delimiters = " \t\r\n(){}[]:#@,|\""
 
+
 list :: Parser IExpr
-list = choice $ map parenparser parendesc
+list = choice $ map parenparser parentable
  where
    subexpr = many $ spaces *> atomexpr <* spaces
 
    parenparser ([open,close], constructor)
      = liftM (IList constructor) $ between (char open) (char close) subexpr
 
-   parendesc = [("()", Parens)
-               ,("[]", Brackets)
-               ,("{}", Braces)
-               ]
+   parentable = [("()", Parens)
+                ,("[]", Brackets)
+                ,("{}", Braces)
+                ]
 
 
 atomexpr :: Parser IExpr
 atomexpr = atom <|> stringexpr <|> list
 
-line :: Parser IExpr
-line = do
-  firstgroup <- many paddedexpr
-  choice $ map ($ IGroup firstgroup) [endofline, doublepoint, hash]
+group :: Parser IExpr -> Parser IExpr
+group elem = liftM IGroup $ many1 paddedElem
  where
-   paddedexpr = horizspaces *> atomexpr <* horizspaces 
+   paddedElem = horizspaces *> elem <* horizspaces 
 
-   endofline group = newline >> return group
+hash :: ParserExtension IExpr
+hash root = do
+  char '#'
+  horizspaces
+  liftM (IHash root) $ spaces >> getColumn >>= sublines
+ where
+   parseLine = many (noneOf "\n") <* newline
+   parseMultipleLines indent
+     = do column <- getColumn
+          if column < indent
+            then option [] $     (char ' ' >> parseMultipleLines indent)
+                             <|> (newline  >> liftM ("":) (parseMultipleLines indent))
+            else liftM2 (:) parseLine (parseMultipleLines indent)
+   sublines indent = dropWhileEnd null `liftM` parseMultipleLines indent
 
-   hash root = do
-     char '#'
-     horizspaces
-     liftM (IHash root) $ spaces >> getColumn >>= sublines
-    where
-      parseLine = many (noneOf "\n") <* newline
-      substrings indent
-        = do column <- getColumn
-             if column < indent
-             then option [] $ (char ' ' >> substrings indent)
-                              <|> (newline >> liftM ("":) (substrings indent))
-             else liftM2 (:) parseLine (substrings indent)
-      sublines indent = dropWhileEnd null `liftM` substrings indent
+doublepoint :: Parser IExpr -> ParserExtension IExpr
+doublepoint leaf root = do
+  char ':'
+  seperator <- many $ noneOf delimiters
+  horizspaces
+  liftM (ITreeSep seperator root) $ spaces >> subexprs
+ where
+   subexprs = leaves leaf =<< getColumn
 
-   doublepoint root = do
-     char ':'
-     seperator <- many $ noneOf delimiters
-     horizspaces
-     liftM (ITreeSep seperator root) $ spaces >> subexprs
-    where
-      subexprs = leaves =<< getColumn
 
-decorator :: Parser IExpr
-decorator = do
+decorator :: Parser IExpr -> Parser IExpr -> Parser IExpr
+decorator decorator decorated = do
   char '@'
-  decoratorexpr <- tree
-  decoratedexpr <- iexpr
+  decoratorexpr <- decorator
+  decoratedexpr <- decorated
   return $ IDecor decoratorexpr decoratedexpr
 
 
-tree :: Parser IExpr
-tree = do
+tree :: Parser IExpr -> Parser IExpr -> Parser IExpr
+tree leaf embedded = do
   spaces
   indent <- getColumn
-  rootexpr <- line
+  rootexpr <- embedded
   spaces
   column <- getColumn
   if column > indent
-    then liftM (ITree rootexpr) (leaves column)
+    then liftM (ITree rootexpr) (leaves leaf column)
     else return rootexpr
 
-iexpr :: Parser IExpr
-iexpr = decorator <|> tree
 
-leaves :: Column -> Parser [IExpr]
-leaves indent = many $ leaf <* horizspaces
+treeIExpr :: Parser IExpr -> Parser IExpr
+treeIExpr leaf = tree leaf $ (doublepoint leaf `extOr` hash) `extend` (group atomexpr, IGroup [])
+
+
+leaves :: Parser IExpr -> Column -> Parser [IExpr]
+leaves embedded indent = many $ leaf <* spaces
  where
    leaf = do
      column <- getColumn
      guard $ column >= indent
-     iexpr
+     embedded
 
+
+iexpr :: Parser IExpr
+iexpr = decorator (list <|> onlyTreeIExpr) iexpr <|> treeIExpr iexpr
+ where
+   onlyTreeIExpr = treeIExpr onlyTreeIExpr
+
+
+type ParserExtension a = a -> Parser a
+
+extend :: ParserExtension a -> (Parser a, a) -> Parser a
+parser `extend` (embedded, empty) = withEmbedded <|> parser empty
+ where
+   withEmbedded = do
+     embeddedExpr <- embedded
+     maybeExtension <- parseMaybe $ parser embeddedExpr
+     return $ fromMaybe embeddedExpr maybeExtension
+   parseMaybe parser = liftM Just parser <|> return Nothing
+
+extOr :: ParserExtension a -> ParserExtension a -> ParserExtension a
+(extension1 `extOr` extension2) root = extension1 root <|> extension2 root
 
 
 horizspaces, horizspaces1 :: Parser ()
@@ -152,4 +177,8 @@ instance Pretty IExpr where
       nest 2 (vcat $ map pretty right)
   pretty (IHash expr substrings)
     = text "Hash" <+> parens (pretty expr) $+$
-      nest 2 (vcat $ map text substrings)
+      nest 2 (vcat $ map (prepend "|" . text) substrings)
+   where
+     prepend str = (text str <>)
+     postpend str = (<> text str)
+     surround str = prepend str . postpend str
