@@ -1,8 +1,8 @@
 module TestHelpers where
 
+import IExprParser
 import Matching
 import Pretty
-import Syntax
 
 import Backends.Haskell.Compiler
 import Backends.Haskell.Syntax

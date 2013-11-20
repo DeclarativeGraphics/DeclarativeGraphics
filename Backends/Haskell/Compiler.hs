@@ -1,7 +1,7 @@
 module Backends.Haskell.Compiler where
 
+import IExpr
 import MatchIExpr
-import Syntax
 
 import Backends.Haskell.Syntax
 

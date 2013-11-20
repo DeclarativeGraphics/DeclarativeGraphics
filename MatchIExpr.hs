@@ -30,8 +30,8 @@ module MatchIExpr (
     ) where
 
 
+import IExpr
 import Matching
-import Syntax
 
 import Control.Applicative (Applicative(..),liftA,liftA2,liftA3)
 import Data.Monoid (Monoid(mappend))
