@@ -1,6 +1,7 @@
 module TestHelpers where
 
 import IExprParser
+import MatchIExpr
 import Matching
 import Pretty
 
@@ -14,6 +15,7 @@ import Data.List (intersperse)
 import Text.Parsec (many1,parse)
 import Text.Parsec.String (parseFromFile)
 
+import System.Console.Haskeline
 import System.FilePath (takeBaseName)
 
 
@@ -32,7 +34,9 @@ testParse file
   = tolerant (parseFromFile (many1 iexpr) file)
              (mapM_ putStrLn . intersperse "" . map (show . pretty))
 
-tolerantRead = tolerant ((parse iexpr "<stdin>" . unlines) `liftM` getMultiLine)
+tolerantRead = tolerant parseRead
+
+parseRead = (parse iexpr "<stdin>" . unlines) `liftM` getMultiLine
 
 testRead = tolerantRead prettyPrint
 
@@ -42,7 +46,16 @@ getLinesTill endmark = do
   then return []
   else (line:) `liftM` getLinesTill endmark
 
-getMultiLine = getLinesTill ""
+getMultiLine = getMultiHasLine --getLinesTill ""
+
+getMultiHasLine = runInputT defaultSettings loop
+ where
+   loop :: InputT IO [String]
+   loop = do
+     maybeline <- getInputLine "> "
+     case maybeline of
+       Nothing -> return []
+       Just line -> liftM (line:) loop
 
 
 compileModule filename

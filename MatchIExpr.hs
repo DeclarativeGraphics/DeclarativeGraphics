@@ -5,6 +5,7 @@ module MatchIExpr (
     lCons,
 
     mAny,
+    mTry,
     mSatisfy,
     mEq,
 
@@ -89,6 +90,7 @@ lMany1 msub = liftA (uncurry (:)) (msub `lCons` lMany msub)
 lList :: [Matcher i IExprError a] -> Matcher [i] IExprError [a]
 lList = M . llist . map runMatch
 
+infixr `lCons`
 lCons :: Matcher i IExprError a -> Matcher [i] IExprError b -> Matcher [i] IExprError (a,b)
 lCons = transform2 _cons
 
@@ -98,6 +100,10 @@ lCons = transform2 _cons
 
 _Any :: Monoid e => i -> Result e i
 _Any = pure
+
+_try func x = case func x of
+  Just result -> pure result
+  Nothing     -> simpleError $ "unexpected " ++ show x
 
 _satisfy pred x | pred x    = pure x
                 | otherwise = sourceError "unexpected" x
@@ -153,6 +159,9 @@ _hash _ _ expr = sourceError "hash" expr
 
 mAny :: Monoid e => Matcher i e i
 mAny = M _Any
+
+mTry :: Show i => (i -> Maybe b) -> Matcher i IExprError b
+mTry func = M $ _try func
 
 mSatisfy :: (IExpr -> Bool) -> IExprMatcher IExpr
 mSatisfy pred = M $ _satisfy pred
