@@ -1,7 +1,6 @@
 module TestHelpers where
 
 import IExprParser
-import MatchIExpr
 import Matching
 import Pretty
 

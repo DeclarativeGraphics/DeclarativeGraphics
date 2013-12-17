@@ -13,38 +13,36 @@ import Data.Either (partitionEithers)
 
 iModule = liftA (hsMod . partitionEithers . snd) iModuleExpr
   where
-    iModuleExpr = mTreeSep' (msimplegroup ["hasmod"]) ":"
+    iModuleExpr = mTreeSep' (msimplelist ["hasmod"]) ":"
                             (lMany iModuleBodyStatement)
     iModuleBodyStatement = liftA Left iImport `orTry` liftA Right iDefinition
     hsMod (importGroups, definitions) = HSMod (concat importGroups) definitions
 
 iImport = liftA hsImport mImport
  where
-   mImport = mTreeSep' (msimplegroup ["import"]) ":" (lMany . mGroup $ mModulePath)
+   mImport = mTreeSep' (msimplelist ["import"]) ":" (lMany . mList $ mModulePath)
    mModulePath = lMany (mSymbol mAny)
    hsImport (_,modules) = map HSImport modules
 
 iDefinition = iDefFunc `orTry` iDefData
 
-iDefFunc = liftA (HSFuncDef . snd) mFuncDef
- where
-   mFuncDef = mTreeSep' (msimplegroup ["define"]) ":" (lMany iDecl)
+iDefFunc = liftA (HSFuncDef . snd) $ mLineGroup (mSymbolEq "define") (lMany iDecl)
 
 iDefData = liftA datadef mDataDef
  where
-   mDataDef = mTreeSep' (mGroup (mSymbol (mEq "define-data") `lCons` lMany mAnySymbol)) ":"
+   mDataDef = mTreeSep' (mList (mSymbol (mEq "define-data") `lCons` lMany mAnySymbol)) ":"
                         (lMany iDataConstr)
    datadef ((_, name : typevars), constructors) = HSDataDef name typevars constructors
 
 iDataConstr = liftA dataconstr mDataConstr
  where
-   mDataConstr = msomegroup (mAnySymbol `lCons` lMany iType)
+   mDataConstr = msomelist (mAnySymbol `lCons` lMany iType)
    dataconstr (name,types) = HSDataConstr name types
 
 iType = liftA hsType mType `orTry` liftA HSTypeVar mTypeVar
  where
-   mType = msingle (mList Parens (mAnySymbol `lCons` lMany iType))
-           `orTry` mGroup (mAnySymbol `lCons` lMany1 iType)
+   mType = msingle (mGroup Parens (mAnySymbol `lCons` lMany iType))
+           `orTry` mList (mAnySymbol `lCons` lMany1 iType)
    mTypeVar = msingle mAnySymbol
 
    hsType (name, subtypes) = HSType name subtypes
@@ -52,14 +50,14 @@ iType = liftA hsType mType `orTry` liftA HSTypeVar mTypeVar
 
 iDecl = liftA declaration $ mTreeSep' iSignature ":=" (lList [iExpr])
  where
-   iSignature = mGroup $ mAnySymbol `lCons` lMany iPat
+   iSignature = mList $ mAnySymbol `lCons` lMany iPat
    declaration ((name,args), [body]) = HSDecl name args body
 
 iPat = liftA PVar mAnySymbol
 
-iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
+iExpr = iAppList `orTry` iAppTree `orTry` iString `orTry` iVariable
  where
-   iAppGroup = liftA (foldl1 HSApp) $ msomegroup (lMany iExpr)
+   iAppList = liftA (foldl1 HSApp) $ msomelist (lMany iExpr)
 
    iAppTree  = liftA hsApp (mSimpleTree `orTry` mAppSepTree)
    mSimpleTree = mTree iExpr (lMany iExpr)
@@ -72,6 +70,17 @@ iExpr = iAppGroup `orTry` iAppTree `orTry` iString `orTry` iVariable
    iVariable = liftA HSVar mAnySymbol
 
 
+
+mLineGroup mroot mlines = liftA extractTreeLines treeLines
+                  `orTry` liftA extractBraceLine oneBraceLine
+ where
+   treeLines = mTreeSep' (mList $ lList [mroot]) ":" mlines
+   extractTreeLines ([root], sublines) = (root, sublines)
+
+   oneBraceLine = msomelist (mroot `lCons` lList [mGroup Braces mlines])
+   extractBraceLine (root, [sublines]) = (root, sublines)
+
+
 -- this function name is very bad
 mTreeSep' mroot seperator mbody = liftA extractTree $ mTreeSep mroot (mEq seperator) mbody
  where
@@ -79,8 +88,9 @@ mTreeSep' mroot seperator mbody = liftA extractTree $ mTreeSep mroot (mEq sepera
 
 mAnySymbol = mSymbol mAny
 
-msomegroup msub = mGroup msub `orTry` mList Parens msub
-msimplegroup atomnames = mGroup . lList . map (mSymbol . mEq) $ atomnames
+msomelist melems = mList melems `orTry` mGroup Parens melems
+msimplelist atomnames = mList . lList . map mSymbolEq $ atomnames
 
-msingle msub = liftA head (mGroup (lList [msub])) `orTry` msub
+mSymbolEq = mSymbol . mEq
 
+msingle msub = liftA head (mList (lList [msub])) `orTry` msub

@@ -4,15 +4,15 @@ import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..))
 
 
-newtype Matcher i e a = M (i -> Result e a)
+newtype Matcher input err a = M (input -> Result err a)
 data Result e s = Error e | Success s
 
 
-instance Functor (Matcher i e) where
+instance Functor (Matcher input err) where
   fmap f (M matcher) = M (fmap f . matcher)
 
-instance Monoid e => Applicative (Matcher i e) where
-  pure = M . const . pure
+instance Monoid err => Applicative (Matcher input err) where
+  pure x = M $ \input -> pure x
   (M f) <*> (M arg) = M (\input -> f input <*> arg input)
 
 
@@ -31,16 +31,8 @@ instance Monoid e => Applicative (Result e) where
 
 
 
-
-transform1 matcher submatcher = M . matcher $ runMatch submatcher
-transform2 matcher subm0 subm1 = M $ matcher (runMatch subm0) (runMatch subm1)
-transform3 matcher subm0 subm1 subm2
-  = M $ matcher (runMatch subm0) (runMatch subm1) (runMatch subm2)
-
-
-
-runMatch (M matcher) = matcher
-match matcher = getResult . runMatch matcher
+runMatcher (M matcher) = matcher
+match matcher = getResult . runMatcher matcher
 
 getResult (Error err)    = Left err
 getResult (Success succ) = Right succ
