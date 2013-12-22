@@ -33,10 +33,12 @@ tolerantParseFile file = tolerant (parseFromFile iexpr file)
 testParse file
   = tolerant (parseFromFile (many1 iexpr) file)
              (mapM_ putStrLn . intersperse "" . map (show . pretty))
+             
+testParser parser = tolerant (parseFromInput parser) prettyPrint
 
-tolerantRead = tolerant parseRead
+tolerantRead = tolerant (parseFromInput iexpr)
 
-parseRead = (parse iexpr "<stdin>" . unlines) `liftM` getMultiLine
+parseFromInput parser = (parse parser "<stdin>" . unlines) `liftM` getMultiLine
 
 testRead = tolerantRead prettyPrint
 
@@ -70,6 +72,10 @@ compileModulePrint filename
       match iModule >>> eitherFailOr (print . prettyMod filebase)
  where
    filebase = takeBaseName filename
+
+compileWith compiler filename
+  = tolerantParseFile filename $
+      match compiler >>> eitherFailOr prettyPrint
 
 compileRead compiler = tolerantRead $ match compiler >>> eitherFailOr prettyPrint
 

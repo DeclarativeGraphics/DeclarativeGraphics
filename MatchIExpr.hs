@@ -21,10 +21,11 @@ module MatchIExpr (
     contextualMatcher,
     showContextualErrors,
 
-    mSymbol,
+    mAtom,
     mString,
-    mGroup,
     mList,
+    mBraceList,
+    mBracketList,
     mDecor,
     mTree,
     mTreeSep,
@@ -171,12 +172,12 @@ mEq expect = M eqMatcher
    eqMatcher input | input == expect = pure input
                    | otherwise       = matcherError $ "unexpected " ++ show input
 
-mSymbol :: Matcher String (IExprError s) a -> IExprMatcher s a
-mSymbol matchName = contextualMatcher symbolMatcher
+mAtom :: Matcher String (IExprError s) a -> IExprMatcher s a
+mAtom matchName = contextualMatcher atomMatcher
  where
-   symbolMatcher input = case input of
-     ISymbol name _ -> runMatcher matchName name
-     otherwise      -> matcherError "expected symbol"
+   atomMatcher input = case input of
+     IAtom name _ -> runMatcher matchName name
+     otherwise    -> matcherError "expected atom"
 
 mString :: Matcher String (IExprError s) a -> IExprMatcher s a
 mString matchContents = contextualMatcher matchString
@@ -185,22 +186,26 @@ mString matchContents = contextualMatcher matchString
      IString contents _ -> runMatcher matchContents contents
      otherwise          -> matcherError "expected String"
 
-mGroup :: ParenType -> IExprListMatcher s a -> IExprMatcher s a
-mGroup expectedparentype matchElems = contextualMatcher matchList
- where
-   matchList input = case input of
-     IGroup parentype elems -> if parentype == expectedparentype
-                               then runMatcher matchElems elems
-                               else matcherError $
-                                      "expected parentype " ++ show expectedparentype
-     otherwise -> matcherError "expected group"
-
 mList :: IExprListMatcher s a -> IExprMatcher s a
 mList matchElems = contextualMatcher matchList
  where
    matchList input = case input of
      IList elems -> runMatcher matchElems elems
      otherwise   -> matcherError "expected list"
+
+mBraceList :: IExprListMatcher s a -> IExprMatcher s a
+mBraceList matchElems = contextualMatcher matchList
+ where
+   matchList input = case input of
+     IBraceList elems -> runMatcher matchElems elems
+     otherwise -> matcherError "expected list in braces"
+
+mBracketList :: IExprListMatcher s a -> IExprMatcher s a
+mBracketList matchElems = contextualMatcher matchList
+ where
+   matchList input = case input of
+     IBracketList elems -> runMatcher matchElems elems
+     otherwise -> matcherError "expected list in brackets"
 
 mDecor :: IExprMatcher s a -> IExprMatcher s b -> IExprMatcher s (a,b)
 mDecor matchDecorator matchDecorated = contextualMatcher matchDecor

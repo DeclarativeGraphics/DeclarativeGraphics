@@ -5,10 +5,11 @@ import Pretty
 import Text.PrettyPrint
 
 
-data IExpr s = ISymbol String s
+data IExpr s = IAtom String s
              | IString String s
-             | IGroup ParenType [IExpr s]
              | IList [IExpr s]
+             | IBraceList [IExpr s]
+             | IBracketList [IExpr s]
              | IDecor (IExpr s) (IExpr s)
              | ITree (IExpr s) [IExpr s]
              | ITreeSep (String, s) (IExpr s) [IExpr s]
@@ -19,14 +20,13 @@ data ParenType = Parens | Brackets | Braces deriving (Show, Eq)
 
 
 instance Pretty (IExpr s) where
-  pretty (ISymbol cont _) = text cont
+  pretty (IAtom cont _) = text cont
   pretty (IString cont _) = text $ show cont
-  pretty (IGroup parentype exprs)
-    = text "Group" <> (wrapInParens parentype . sep $ map pretty exprs)
-   where wrapInParens Parens = parens
-         wrapInParens Brackets = brackets
-         wrapInParens Braces = braces
   pretty (IList exprs) = text "List" <> parens (hsep $ map pretty exprs)
+  pretty (IBraceList exprs)
+    = text "List" <> (braces . sep $ map pretty exprs)
+  pretty (IBracketList exprs)
+    = text "List" <> (brackets . sep $ map pretty exprs)
   pretty (IDecor decorator decorated)
     = text "Decor" <+> pretty decorator $+$
       nest 2 (pretty decorated)
@@ -47,10 +47,11 @@ instance Pretty (IExpr s) where
 
 
 getPositions :: IExpr pos -> [pos]
-getPositions (ISymbol _ pos)              = [pos]
+getPositions (IAtom _ pos)                = [pos]
 getPositions (IString _ pos)              = [pos]
-getPositions (IGroup _ elems)             = concatMap getPositions elems
 getPositions (IList elems)                = concatMap getPositions elems
+getPositions (IBraceList elems)           = concatMap getPositions elems
+getPositions (IBracketList elems)         = concatMap getPositions elems
 getPositions (IDecor decorator decorated) = getPositions decorator ++ getPositions decorated
 getPositions (ITree root leaves)          = getPositions root ++ concatMap getPositions leaves
 getPositions (ITreeSep (_, seperatorpos) root leaves)
