@@ -2,6 +2,7 @@ module TestHelpers where
 
 import IExprParser
 import Matching
+import MatchIExpr (showContextualErrors)
 import Pretty
 
 import Backends.Haskell.Compiler
@@ -76,7 +77,7 @@ prettyPrint :: Pretty a => a -> IO ()
 prettyPrint = print . pretty
 
 
-eitherFailOr f (Left err) = print err
+eitherFailOr f (Left err) = putStr $ showContextualErrors 3 err
 eitherFailOr f (Right success) = f success
 
 (f >>> g) x = g (f x)

@@ -15,10 +15,11 @@ module MatchIExpr (
 
     SimpleError(..),
     ContextualError(..),
-    sourceError,
-    simpleError,
-    simplePosError,
+    matcherError,
     withContext,
+    contextual,
+    contextualMatcher,
+    showContextualErrors,
 
     mSymbol,
     mString,
@@ -37,69 +38,110 @@ import IExpr
 import Matching
 
 import Control.Applicative (Applicative(..),liftA,liftA2,liftA3)
+import Data.List (intersperse)
 import Data.Monoid (Monoid(mappend))
+import Data.Maybe (mapMaybe)
 
 
 -------------- IExpr Matching ---------------
 
 type IExprMatcher s     = Matcher (IExpr s) (IExprError s)
 type IExprListMatcher s = Matcher [IExpr s] (IExprError s)
-type IExprError s       = [SimpleError (Maybe s) (IExpr s)]
+type IExprError s       = [ContextualError (IExpr s)]
 
 data SimpleError s e = SErrorSource s Message e
                      | SErrorMessage s Message
                      deriving Show
 
-data ContextualError s c e = CErrorContext s c (ContextualError s c e)
-                           | CErrorSource s Message e
-                           | CErrorMessage s Message
-                           deriving Show
+data ContextualError e = CErrorContext e (ContextualError e)
+                       | CErrorContextMessage Message (ContextualError e)
+                       | CErrorMessage Message
 
 type Message = String
 
 
-sourceError :: Message -> IExpr pos -> Result (IExprError pos) a
-sourceError message source = Error [SErrorSource (getPosition source) message source]
+showContextualErrors count err
+  = unlines . intersperse " -- OR --" . map (showError . errorTrace) . take count $ err
+ where
+   showError (message, trace) = message ++ " " ++ showTrace trace
 
-simpleError :: Message -> Result (IExprError pos) a
-simpleError message = Error [SErrorMessage Nothing message]
+   showTrace = unwords . mapMaybe showErrorContext . takeUpTo isCErrorContext . reverse
 
-simplePosError :: Message -> pos -> Result (IExprError pos) a
-simplePosError message pos = Error [SErrorMessage (Just pos) message]
+   takeUpTo pred [] = []
+   takeUpTo pred (x:xs) | pred x    = [x]
+                        | otherwise = x : takeUpTo pred xs
 
-withContext :: c -> Result [ContextualError s c e] a -> s -> Result [ContextualError s c e] a
-withContext context (Success s) pos = Success s
-withContext context (Error e)   pos = Error $ map (CErrorContext pos context) e
+   isCErrorContext (CErrorContext _ _) = True
+   isCErrorContext _                   = False
+
+   showErrorContext (CErrorContextMessage message _)
+     = return message
+   showErrorContext (CErrorContext surroundingExpression _)
+     = do position <- getPosition surroundingExpression
+          return $ "in " ++ show position
+
+   errorTrace (CErrorMessage message) = (message, [])
+   errorTrace context@(CErrorContextMessage _ innerError)
+     = let (message, trace) = errorTrace innerError
+       in (message, context : trace)
+   errorTrace context@(CErrorContext _ innerError)
+     = let (message, trace) = errorTrace innerError
+       in (message, context : trace)
+
+
+matcherError :: Message -> Result (IExprError pos) a
+matcherError message = Error [CErrorMessage message]
+
+contextual :: (IExpr pos -> Result (IExprError pos) a)
+           -> IExpr pos
+           -> Result (IExprError pos) a
+contextual matcher input = withContext input (matcher input)
+
+withContext :: IExpr pos -> Result (IExprError pos) a -> Result (IExprError pos) a
+withContext context (Success s) = Success s
+withContext context (Error e)   = Error $ map (CErrorContext context) e
+
+contextualMatcher matcher = M $ contextual matcher
+
+
+match `inContext` context = M $ withContextMessage context . runMatcher match
+
+withContextMessage context (Success s) = Success s
+withContextMessage context (Error e)   = Error $ map (CErrorContextMessage context) e
 
 
 
 ------------- List Matcher -------------
 
 
-lMany :: Matcher i (IExprError s) a -> Matcher [i] (IExprError s) [a]
+lMany :: IExprMatcher pos a -> IExprListMatcher pos [a]
 lMany matchElem = M $ foldr consMatch (pure [])
  where
-   consMatch input rest = liftA2 (:) (runMatcher matchElem input) rest
+   consMatch input rest = withContext input $ liftA2 (:) (runMatcher matchElem input) rest
 
-lMany1 :: Matcher i (IExprError s) a -> Matcher [i] (IExprError s) [a]
+lMany1 :: IExprMatcher pos a -> IExprListMatcher pos [a]
 lMany1 msub = liftA (uncurry (:)) (msub `lCons` lMany msub)
 
-lList :: [Matcher i (IExprError s) a] -> Matcher [i] (IExprError s) [a]
+lList :: [IExprMatcher pos a] -> IExprListMatcher pos [a]
 lList matchElems = M $ matchList matchElems
  where
-   matchList (matchElem:matchOther) (elem:other) = liftA2 (:) (runMatcher matchElem elem)
-                                                              (matchList matchOther other)
+   matchList (matchElem:matchOther) (elem:other)
+                   = withContext elem $ liftA2 (:) (runMatcher matchElem elem)
+                                                   (matchList matchOther other)
    matchList [] [] = pure []
-   matchList [] _  = simpleError "too many elements"
-   matchList _  [] = simpleError "too few elements"
+   matchList [] _  = matcherError "too many elements"
+   matchList _  [] = matcherError "too few elements"
 
 infixr `lCons`
-lCons :: Matcher i (IExprError s) a -> Matcher [i] (IExprError s) b -> Matcher [i] (IExprError s) (a,b)
+lCons :: IExprMatcher pos a
+      -> IExprListMatcher pos b
+      -> IExprListMatcher pos (a,b)
 lCons matchHead matchTail = M matchCons
  where
-   matchCons (head:tail) = getBoth (runMatcher matchHead head)
-                                   (runMatcher matchTail tail)
-   matchCons []          = simpleError "expected non-empty list"
+   matchCons (head:tail) = withContext head $
+                             getBoth (runMatcher matchHead head)
+                                     (runMatcher matchTail tail)
+   matchCons []          = matcherError "expected non-empty list"
 
 
 -------------------- MATCHERS --------------------
@@ -115,86 +157,89 @@ mTry func = M tryMatcher
  where
    tryMatcher input = case func input of
      Just result -> pure result
-     Nothing     -> simpleError $ "unexpected " ++ show input
+     Nothing     -> matcherError $ "unexpected " ++ show input
 
 mSatisfy :: (IExpr s -> Bool) -> IExprMatcher s (IExpr s)
-mSatisfy pred = M satisfyMatcher
+mSatisfy pred = contextualMatcher satisfyMatcher
  where
    satisfyMatcher input | pred input = pure input
-                        | otherwise  = sourceError "unexpected" input
+                        | otherwise  = matcherError "unexpected"
 
 mEq :: (Eq i, Show i) => i -> Matcher i (IExprError s) i
 mEq expect = M eqMatcher
  where
    eqMatcher input | input == expect = pure input
-                   | otherwise       = simpleError $ "unexpected " ++ show input
+                   | otherwise       = matcherError $ "unexpected " ++ show input
 
 mSymbol :: Matcher String (IExprError s) a -> IExprMatcher s a
-mSymbol matchName = M symbolMatcher
+mSymbol matchName = contextualMatcher symbolMatcher
  where
    symbolMatcher input = case input of
      ISymbol name _ -> runMatcher matchName name
-     otherwise      -> sourceError "expected symbol" input
+     otherwise      -> matcherError "expected symbol"
 
 mString :: Matcher String (IExprError s) a -> IExprMatcher s a
-mString matchContents = M matchString
+mString matchContents = contextualMatcher matchString
  where
    matchString input = case input of
      IString contents _ -> runMatcher matchContents contents
-     otherwise          -> sourceError "expected String" input
+     otherwise          -> matcherError "expected String"
 
 mGroup :: ParenType -> IExprListMatcher s a -> IExprMatcher s a
-mGroup expectedparentype matchElems = M matchList
+mGroup expectedparentype matchElems = contextualMatcher matchList
  where
    matchList input = case input of
      IGroup parentype elems -> if parentype == expectedparentype
                                then runMatcher matchElems elems
-                               else sourceError "parentype doesn't match" input
-     otherwise -> sourceError "expected group" input
+                               else matcherError $
+                                      "expected parentype " ++ show expectedparentype
+     otherwise -> matcherError "expected group"
 
 mList :: IExprListMatcher s a -> IExprMatcher s a
-mList matchElems = M matchList
+mList matchElems = contextualMatcher matchList
  where
    matchList input = case input of
      IList elems -> runMatcher matchElems elems
-     otherwise   -> sourceError "expected list" input
+     otherwise   -> matcherError "expected list"
 
 mDecor :: IExprMatcher s a -> IExprMatcher s b -> IExprMatcher s (a,b)
-mDecor matchDecorator matchDecorated = M matchDecor
+mDecor matchDecorator matchDecorated = contextualMatcher matchDecor
  where
    matchDecor input = case input of
      IDecor decorator decorated -> getBoth (runMatcher matchDecorator decorator)
                                            (runMatcher matchDecorated decorated)
-     otherwise -> sourceError "expected decorator" input
+     otherwise -> matcherError "expected decorator"
 
 mTree :: IExprMatcher s a -> IExprListMatcher s b -> IExprMatcher s (a,b)
-mTree matchRoot matchLeaves = M matchTree
+mTree matchRoot matchLeaves = contextualMatcher matchTree
  where
    matchTree input = case input of
      ITree root leaves -> getBoth (runMatcher matchRoot root)
-                                  (runMatcher matchLeaves leaves)
-     otherwise -> sourceError "expected tree" input
+                                  (withContextMessage "in body" $
+                                     runMatcher matchLeaves leaves)
+     otherwise -> matcherError "expected tree"
 
 mTreeSep :: IExprMatcher s r
          -> Matcher String (IExprError s) sep
          -> IExprListMatcher s b
          -> IExprMatcher s (r,sep,b)
-mTreeSep matchRoot matchSeperator matchLeaves = M matchTreeSep
+mTreeSep matchRoot matchSeperator matchLeaves = contextualMatcher matchTreeSep
  where
    matchTreeSep input = case input of
      ITreeSep (seperator, _) root leaves
        -> liftA3 (,,) (runMatcher matchRoot root)
                       (runMatcher matchSeperator (':' : seperator))
-                      (runMatcher matchLeaves leaves)
-     otherwise -> sourceError "expected tree with seperator" input
+                      (withContextMessage ("right of :" ++ seperator) $
+                         runMatcher matchLeaves leaves)
+     otherwise -> matcherError "expected tree with seperator"
 
 mHash :: IExprMatcher s a -> Matcher [String] (IExprError s) b -> IExprMatcher s (a,b)
-mHash matchRoot matchContents = M matchHash
+mHash matchRoot matchContents = contextualMatcher matchHash
  where
    matchHash input = case input of
      IHash root contents -> getBoth (runMatcher matchRoot root)
                                     (runMatcher matchContents contents)
-     otherwise -> sourceError "expected hash" input
+     otherwise -> matcherError "expected hash"
 
 
 
