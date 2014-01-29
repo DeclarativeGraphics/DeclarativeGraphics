@@ -1,5 +1,9 @@
 module Graphics.GtkFRP where
 
+import Diagrams.Prelude (R2,Diagram)
+import Diagrams.Backend.Gtk
+import Diagrams.Backend.Cairo
+
 import Graphics.FRP
 import Graphics.FRPUtils
 
@@ -18,7 +22,7 @@ data GtkEvent = MouseMove (Point Double)
               | Resize (Int,Int)
               deriving (Eq,Show)
 
-type GtkFRP = FRP (Event GtkEvent) (Render ())
+type GtkFRP = FRP (Event GtkEvent) (Diagram B R2)
 
 type Point a = (a,a)
 type RGB a = (a,a,a)
@@ -28,9 +32,7 @@ frpWidget :: DrawingArea -> GtkFRP -> IO ()
 frpWidget canvas frpsys = do
       frp <- newIORef (getState frpsys, frpsys)
 
-
-      drawable <- widgetGetDrawWindow canvas
-      let draw = renderWithDrawable drawable
+      let draw = defaultRender canvas
 
       canvas `on` exposeEvent $ processEvent $ liftIO $ do
         draw =<< getFRPState frp

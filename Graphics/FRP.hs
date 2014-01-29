@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 module Graphics.FRP where
 
+import Control.Applicative
 import Control.Monad
 
 data Event a = Event a | NoEvent deriving Show
@@ -57,9 +58,9 @@ getState (OnEvent frp)       = getState frp
 runList network xs = tail $ map fst $ scanl (run . snd) (undefined, network) xs
 
 constant = Constant
-pure = Pure
+mapB = Pure
 
-input = pure id
+input = mapB id
 
 foldp :: (a -> s -> s) -> s -> FRP (Event a) s
 foldp f state = OnEvent $ Stateful f state
@@ -77,7 +78,7 @@ maskBy = merge maskEvent
    maskEvent False x = x
 
 eventMap :: (a -> b) -> FRP (Event a) (Event b)
-eventMap f = OnEvent $ pure (Event . f)
+eventMap f = OnEvent $ mapB (Event . f)
 
 eventsWhen :: FRP g Bool -> FRP g (Event a) -> FRP g (Event a)
 eventsWhen = merge filterEvent
@@ -86,12 +87,12 @@ eventsWhen = merge filterEvent
    filterEvent False _ = NoEvent
 
 eventFilter :: (a -> Bool) -> FRP (Event a) (Event a)
-eventFilter pred = OnEvent $ pure filterEvent
+eventFilter pred = OnEvent $ mapB filterEvent
  where
    filterEvent ev = if pred ev then Event ev else NoEvent
  
 eventExtract :: (a -> Maybe b) -> FRP (Event a) (Event b)
-eventExtract extract = OnEvent $ pure extractEvent
+eventExtract extract = OnEvent $ mapB extractEvent
  where
    extractEvent ev = case extract ev of
      Just res -> Event res
@@ -125,7 +126,7 @@ infixl 1 <<<
 
 infixl 1 <~
 (<~) :: (a -> b) -> FRP i a -> FRP i b
-f <~ x = pure f <<< x
+f <~ x = mapB f <<< x
 infixl 1 ~~
 (~~) :: FRP i (a -> b) -> FRP i a -> FRP i b
 f ~~ x = merge ($) f x
