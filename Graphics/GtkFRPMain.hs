@@ -1,6 +1,7 @@
 module Main where
 
 import Diagrams.Prelude hiding ((~~))
+import Diagrams.Example.Logo
 
 import Graphics.FRP
 import Graphics.FRPUtils
@@ -9,7 +10,6 @@ import Graphics.Prototype.TextEdit
 import Graphics.GtkFRP
 
 import Graphics.UI.Gtk hiding (Point,Circle)
-import Graphics.Rendering.Cairo
 
 import Control.Monad
 import Data.IORef
@@ -54,7 +54,7 @@ keyEdit = eventExtract keyDir
 
 
 --frpsys :: FRP (Event GtkEvent) (IO ())
-frpsys = constant $ circle 1 # fc yellow -- drawing <~ pos ~~ text ~~ areaSize
+frpsys = drawing <~ pos ~~ textinp ~~ areaSize
   where
     keyEditInput = keyPress >>> keyEdit
 
@@ -71,8 +71,8 @@ frpsys = constant $ circle 1 # fc yellow -- drawing <~ pos ~~ text ~~ areaSize
     lastPress
       = hold Nothing <<< eventMap Just <<< keyPress
     
-    text = textEntry <<< textInput
+    textinp = textEntry <<< textInput
     pos = mousePos <<< mouseMove
 
-    drawing (x,y) text (w,h) =
-      circle 1 # fc yellow
+    drawing pos str (w,h) =
+      logo # freeze # scale 20 === text str # scale 20

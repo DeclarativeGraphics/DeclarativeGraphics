@@ -1,8 +1,9 @@
 module Graphics.GtkFRP where
 
-import Diagrams.Prelude (R2,Diagram)
-import Diagrams.Backend.Gtk
+import Diagrams.Prelude hiding (Point)
 import Diagrams.Backend.Cairo
+import Diagrams.Backend.Cairo.Internal
+import Diagrams.Backend.Gtk
 
 import Graphics.FRP
 import Graphics.FRPUtils
@@ -11,7 +12,8 @@ import Control.Monad
 import Data.IORef
 
 import Graphics.UI.Gtk hiding (Point)
-import Graphics.Rendering.Cairo
+import qualified Graphics.Rendering.Cairo as CG
+import Graphics.Rendering.Cairo (liftIO)
 
 
 data GtkEvent = MouseMove (Point Double)
@@ -32,7 +34,7 @@ frpWidget :: DrawingArea -> GtkFRP -> IO ()
 frpWidget canvas frpsys = do
       frp <- newIORef (getState frpsys, frpsys)
 
-      let draw = defaultRender canvas
+      let draw = renderDB canvas . toGtkCoords
 
       canvas `on` exposeEvent $ processEvent $ liftIO $ do
         draw =<< getFRPState frp
@@ -73,6 +75,28 @@ frpWidget canvas frpsys = do
       return (frpstate newfrpsys)
     frpstate (state,_) = state
     getFRPState = liftM frpstate . readIORef
+
+
+renderDB da d = do
+  (w,h) <- widgetGetSize da
+  dw <- widgetGetDrawWindow da
+  let r = snd $ renderDia Cairo
+                  (CairoOptions
+                     { _cairoFileName     = ""
+                     , _cairoSizeSpec     = Absolute
+                     , _cairoOutputType   = RenderOnly
+                     , _cairoBypassAdjust = True
+                     }
+                  )
+                  d
+  renderWithDrawable dw (doubleBuffer $ delete w h >> r)
+ where
+   delete w h = do
+     CG.setSourceRGB 1 1 1
+     CG.rectangle 0 0 (fromIntegral w) (fromIntegral h)
+     CG.fill
+   doubleBuffer render
+     = CG.pushGroup >> render >> CG.popGroupToSource >> CG.paint
 
 
 
