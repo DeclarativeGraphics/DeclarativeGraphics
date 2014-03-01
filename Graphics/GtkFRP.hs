@@ -1,15 +1,10 @@
 module Graphics.GtkFRP where
 
-import Diagrams.Prelude hiding (Point)
-import Diagrams.Backend.Cairo
-import Diagrams.Backend.Cairo.Internal
-import Diagrams.Backend.Gtk
+import Control.Monad
+import Data.IORef
 
 import Graphics.FRP
 import Graphics.FRPUtils
-
-import Control.Monad
-import Data.IORef
 
 import Graphics.UI.Gtk hiding (Point)
 import qualified Graphics.Rendering.Cairo as CG
@@ -24,17 +19,24 @@ data GtkEvent = MouseMove (Point Double)
               | Resize (Int,Int)
               deriving (Eq,Show)
 
-type GtkFRP = FRP (Event GtkEvent) (Diagram B R2)
+type GtkFRP state = FRP (Event GtkEvent) state
 
 type Point a = (a,a)
 type RGB a = (a,a,a)
 
 
-frpWidget :: DrawingArea -> GtkFRP -> IO ()
-frpWidget canvas frpsys = do
+frpWidget :: (DrawingArea -> state -> IO ()) -- ^ rendering function
+          -> DrawingArea -- ^ the drawable
+          -> GtkFRP state -- ^ the FRP system
+          -> IO ()
+frpWidget renderFRPState canvas frpsys = do
       frp <- newIORef (getState frpsys, frpsys)
 
-      let draw = renderDB canvas . toGtkCoords
+      let draw state = do {
+        putStrLn "draw";
+        renderFRPState canvas state;
+        putStrLn "draw done"
+      }
 
       canvas `on` exposeEvent $ processEvent $ liftIO $ do
         draw =<< getFRPState frp
@@ -75,29 +77,6 @@ frpWidget canvas frpsys = do
       return (frpstate newfrpsys)
     frpstate (state,_) = state
     getFRPState = liftM frpstate . readIORef
-
-
-renderDB da d = do
-  (w,h) <- widgetGetSize da
-  dw <- widgetGetDrawWindow da
-  let r = snd $ renderDia Cairo
-                  (CairoOptions
-                     { _cairoFileName     = ""
-                     , _cairoSizeSpec     = Absolute
-                     , _cairoOutputType   = RenderOnly
-                     , _cairoBypassAdjust = True
-                     }
-                  )
-                  d
-  renderWithDrawable dw (doubleBuffer $ delete w h >> r)
- where
-   delete w h = do
-     CG.setSourceRGB 1 1 1
-     CG.rectangle 0 0 (fromIntegral w) (fromIntegral h)
-     CG.fill
-   doubleBuffer render
-     = CG.pushGroup >> render >> CG.popGroupToSource >> CG.paint
-
 
 
 --------- FRP ---------
