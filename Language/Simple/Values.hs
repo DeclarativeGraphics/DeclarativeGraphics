@@ -1,4 +1,15 @@
-module Language.Simple.Values where
+module Language.Simple.Values (
+  SimpleValue(..)
+)
+where
+
+type Func = SimpleValue -> SimpleValue
 
 data SimpleValue = SVNum Int
-                 deriving Show
+                 | SVString String
+                 | SVFunc Func
+
+instance Show SimpleValue where
+  show (SVNum num)  = show num
+  show (SVString s) = show s
+  show (SVFunc _)   = "<func>"

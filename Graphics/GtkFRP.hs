@@ -115,10 +115,10 @@ mousePos = hold (0,0) <<< mouseMove
 
 ---- KEY ----
 
-keyPress :: FRP (Event GtkEvent) (Event KeyVal)
+keyPress :: FRP (Event GtkEvent) (Event Key)
 keyPress = eventExtract getKeyPressKey
   where
-    getKeyPressKey (KeyPress key) = Just key
+    getKeyPressKey (KeyPress keyval) = Just (keyValToKey keyval)
     getKeyPressKey _ = Nothing
 
 keyRelease :: FRP (Event GtkEvent) (Event KeyVal)
@@ -126,3 +126,15 @@ keyRelease = eventExtract getKeyReleaseKey
   where
     getKeyReleaseKey (KeyRelease key) = Just key
     getKeyReleaseKey _ = Nothing
+
+
+
+data Key = Return
+         | Spacebar
+         | Letter Char
+         deriving (Show)
+
+keyValToKey key = case keyName key of
+  "Return" -> Return
+  "space"  -> Spacebar
+  [c]      -> Letter c

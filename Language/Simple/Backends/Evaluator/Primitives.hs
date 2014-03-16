@@ -1,6 +1,6 @@
 module Language.Simple.Backends.Evaluator.Primitives where
 
-import Language.Simple.Backends.Evaluator.Values
+import Language.Simple.Values
 
 svFunc2 f = SVFunc (\x -> SVFunc (\y -> f x y))
 

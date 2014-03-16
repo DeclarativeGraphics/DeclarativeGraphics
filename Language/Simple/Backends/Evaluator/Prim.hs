@@ -1,6 +1,6 @@
 module Language.Simple.Backends.Evaluator.Prim where
 
-import Language.Simple.Backends.Evaluator.Values
+import Language.Simple.Values
 
 import Data.List
 import Data.Maybe

@@ -1,19 +1,20 @@
 module Language.Simple.Backends.Evaluator where
 
+import Language.Simple.Values
 import Language.Simple.Backends.Evaluator.Prim
-import Language.Simple.Backends.Evaluator.Values
 import Language.Simple.Backends.Evaluator.Primitives
 
 import Control.Monad
 
 type Compilation = Evaluator SimpleValue
 
+
 evalTop :: Compilation -> SimpleValue
 evalTop c = evaluate c primArithmetic
 
 
-compileConst :: Int -> Compilation
-compileConst x = return $ SVNum x
+compileConst :: SimpleValue -> Compilation
+compileConst = return
 
 compileVar :: Name -> Compilation
 compileVar var = lookupEnv var
