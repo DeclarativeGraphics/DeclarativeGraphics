@@ -32,11 +32,7 @@ frpWidget :: (DrawingArea -> state -> IO ()) -- ^ rendering function
 frpWidget renderFRPState canvas frpsys = do
       frp <- newIORef (getState frpsys, frpsys)
 
-      let draw state = do {
-        putStrLn "draw";
-        renderFRPState canvas state;
-        putStrLn "draw done"
-      }
+      let draw = renderFRPState canvas
 
       canvas `on` exposeEvent $ processEvent $ liftIO $ do
         draw =<< getFRPState frp
@@ -112,8 +108,8 @@ mouseRelease = eventExtract getMouseReleaseButton
     getMouseReleaseButton (MouseRelease btn) = Just btn
     getMouseReleaseButton _ = Nothing
 
-mousePos :: FRP (Event (Point Double)) (Point Double)
-mousePos = hold (0,0)
+mousePos :: FRP (Event GtkEvent) (Point Double)
+mousePos = hold (0,0) <<< mouseMove
 
 
 
