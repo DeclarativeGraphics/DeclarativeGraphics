@@ -7,7 +7,6 @@ import Diagrams.Backend.Gtk
 import qualified Graphics.UI.Gtk as Gtk
 
 
-diagramsFRPWidget :: Gtk.DrawingArea -> GtkFRP (Diagram Cairo R2) -> IO ()
-diagramsFRPWidget = frpWidget renderFRPDiagram
-  where renderFRPDiagram canvas diagram = do drawingArea <- Gtk.widgetGetDrawWindow canvas
-                                             renderToGtk drawingArea diagram
+renderDiagram :: Gtk.DrawingArea -> Diagram Cairo R2 -> IO ()
+renderDiagram canvas diagram = do drawingArea <- Gtk.widgetGetDrawWindow canvas
+                                  renderToGtk drawingArea diagram

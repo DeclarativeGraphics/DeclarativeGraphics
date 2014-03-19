@@ -6,7 +6,9 @@ import Control.Monad
 
 data Event a = Event a | NoEvent deriving Show
 
-newtype Behavior a = Behavior { behaviorValue :: a } deriving Show
+newtype Behavior a = Behavior a deriving Show
+
+behaviorValue (Behavior v) = v
 
 data FRP a b where
   Constant :: b -> FRP a b
@@ -53,6 +55,8 @@ getState (Merge f frp0 frp1) = f (getState frp0) (getState frp1)
 getState (OnEvent frp)       = getState frp
 
 
+input = Pure id
+
 -------- BEHAVIOR -------
 
 constant :: a -> FRP x (Behavior a)
@@ -67,11 +71,17 @@ mapBehavior f = Pure (Behavior . f . behaviorValue)
 mapEvent :: (a -> b) -> FRP (Event a) (Event b)
 mapEvent f = OnEvent $ Pure (Event . f)
 
+mapEventBehavior :: (a -> b -> c) -> FRP x (Event a) -> FRP x (Behavior b) -> FRP x (Event c)
+mapEventBehavior f evfrp behfrp = Merge fOnBehavior evfrp behfrp
+  where
+    fOnBehavior (Event ev) (Behavior x) = Event (f ev x)
+    fOnBehavior NoEvent    _            = NoEvent
+
 
 filterEvent :: (a -> Bool) -> FRP (Event a) (Event a)
 filterEvent pred = OnEvent $ Pure filterEvent
- where
-   filterEvent ev = if pred ev then Event ev else NoEvent
+  where
+    filterEvent ev = if pred ev then Event ev else NoEvent
  
 eventExtract :: (a -> Maybe b) -> FRP (Event a) (Event b)
 eventExtract extract = OnEvent $ Pure (maybeToEvent . extract)
@@ -108,6 +118,7 @@ eventToMaybe NoEvent   = Nothing
 foldp :: (a -> v -> v) -> v -> FRP (Event a) (Behavior v)
 foldp f init = OnEvent $ Stateful fOnBehavior (Behavior init)
  where fOnBehavior event (Behavior value) = Behavior (f event value)
+
 
 sampleOn :: FRP a (Behavior v) -> FRP a (Event i) -> FRP a (Event v)
 behavior `sampleOn` event = Merge sample event behavior
