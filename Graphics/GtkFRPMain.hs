@@ -1,10 +1,9 @@
 module Graphics.GtkFRPMain where
 
 import Graphics.UI.Gtk
-import Graphics.GtkFRP
 
 
-runGtkFRP frpWidget frpsys = do
+runGtkFRP runFRP = do
   initGUI
   window <- windowNew
   set window [windowTitle := "CairoGraphics"
@@ -21,7 +20,7 @@ runGtkFRP frpWidget frpsys = do
 
   widgetShowAll window
 
-  frpWidget canvas frpsys
+  runFRP canvas
 
   onDestroy window mainQuit
   mainGUI
