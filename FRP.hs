@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs #-}
-module Graphics.FRP where
+module FRP where
 
 import Control.Applicative
 import Control.Monad
