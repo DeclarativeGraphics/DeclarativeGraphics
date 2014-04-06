@@ -110,7 +110,7 @@ hold = foldp const
 connect :: FRP a i -> FRP i b -> FRP a b
 connect (Connect a b)        c = connect a (connect b c)
 connect (Pure f) (Pure g)      = Pure (g . f)
-connect (Pure f) (Connect (Pure g) c) = Connect (Pure (g . f)) c
+connect (Pure f) (Connect (Pure g) c) = connect (Pure (g . f)) c
 connect (OnEvent f) g = OnEvent (connect f g)
 connect a b = Connect a b
 
