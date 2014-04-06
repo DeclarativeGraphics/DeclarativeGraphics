@@ -2,8 +2,9 @@ module Main where
 
 import Graphics.UI.Gtk hiding (eventSent)
 import Graphics.UI.Gtk.Gdk.Events (Event, eventSent)
-import Graphics.Rendering.Cairo
+import Graphics.Rendering.Cairo hiding (rectangle)
 import ReactiveDraw
+import DrawTypes (defaultLineStyle)
 
 main :: IO ()
 main = do
@@ -11,11 +12,8 @@ main = do
   window <- windowNew
   set window windowProperties
 
-  frame <- frameNew
-  containerAdd window frame
-
   canvas <- drawingAreaNew
-  containerAdd frame canvas
+  containerAdd window canvas
 
   widgetModifyBg canvas StateNormal white
   widgetShowAll window
@@ -42,9 +40,11 @@ windowProperties = [
 
 myDraw :: Render ()
 myDraw = do
-  setSourceRGB 0 0 0
-  setLineWidth 1
-  translate 10 10
-  draw $ rectangleOutlined 50 40
-  translate 50 0
-  draw $ circleOutlined 20
+  draw $ outlined defaultLineStyle $ circle 20
+
+  translate 100 100
+  pContext <- liftIO $ cairoCreateContext Nothing
+  pLayout <- liftIO $ layoutText pContext "This is a test."
+  updateLayout pLayout
+  showLayout pLayout
+  return ()
