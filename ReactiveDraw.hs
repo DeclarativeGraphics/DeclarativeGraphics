@@ -14,8 +14,10 @@ data Shape = Shape {
 } deriving (Show, Eq)
 
 data Envelope = Envelope {
-  envWidth :: Double,
-  envHeight :: Double
+  envToLeft :: Double,
+  envToTop :: Double,
+  envToRight :: Double,
+  envToBottom :: Double
 } deriving (Show, Eq)
 
 data Form = Form {
@@ -23,16 +25,22 @@ data Form = Form {
   fDraw :: Cairo.Render ()
 }
 
+envelopeCenteredRect :: Double -> Double -> Envelope
+envelopeCenteredRect width height = Envelope (-width / 2) (-height / 2) (width / 2) (height / 2)
+
+envelopeCenteredCircle :: Double -> Envelope
+envelopeCenteredCircle radius = Envelope (-radius) (-radius) radius radius
+
 circle :: Double -> Shape
 circle radius = Shape {
-  sEnvelope = Envelope size size,
-  sPrims = [Prim.Arc radius radius radius 0 (2 * pi)]
-} where size = radius + radius
+  sEnvelope = envelopeCenteredCircle radius,
+  sPrims = [Prim.Arc 0 0 radius 0 (2 * pi)]
+}
 
 rectangle :: Double -> Double -> Shape
 rectangle width height = Shape {
-  sEnvelope = Envelope width height,
-  sPrims = [Prim.Rectangle 0.5 0.5 (width-1) (height-1)]
+  sEnvelope = envelopeCenteredRect width height,
+  sPrims = [Prim.Rectangle (-width/2) (-height/2) width height]
 }
 
 filled :: Color -> Shape -> Form
@@ -45,20 +53,6 @@ filled (r, g, b) shape = Form {
     Cairo.fill
     Cairo.restore
 }
-
-{- Not really necessary? Exposes Cairo type
-filledWithRule :: Cairo.FillRule -> Color -> Shape -> Form
-filledWithRule rule (r, g, b) shape = Form {
-  fEnvelope = sEnvelope shape,
-  fDraw = do
-    Cairo.save
-    Cairo.setSourceRGB r g b
-    Cairo.setFillRule rule
-    Prim.renderPrimitives $ sPrims shape
-    Cairo.fill
-    Cairo.restore
-}
--}
 
 outlined :: LineStyle -> Shape -> Form
 outlined style shape = Form {
@@ -76,7 +70,7 @@ outlinedCol col = outlined defaultLineStyle { color = col }
 
 text :: String -> Form
 text content = Form {
-  fEnvelope = Envelope width height,
+  fEnvelope = Envelope 0 0 width height,
   fDraw = do
     Cairo.save
     showLayout pLayout
@@ -87,34 +81,13 @@ text content = Form {
   (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
 
 empty :: Shape
-empty = blank 0 0
+empty = blankCentered 0 0
 
-blank :: Double -> Double -> Shape
-blank w h = onlyEnvelope $ Envelope w h
+blankCentered :: Double -> Double -> Shape
+blankCentered w h = onlyEnvelope $ Envelope (-w/2) (-h/2) (w/2) (h/2)
 
 onlyEnvelope :: Envelope -> Shape
 onlyEnvelope env = Shape env []
-
-positioned :: [(Position, Form)] -> Form
-positioned positionList = Form {
-  fEnvelope = Envelope 0 0,
-  fDraw = do
-    mapM_ (\((x, y), form) -> do
-      Cairo.save
-      Cairo.translate x y
-      fDraw form
-      Cairo.restore) positionList
-}
-
-overlayed :: [Form] -> Form
-overlayed rs = positioned $ map (\r -> ((0, 0), r)) rs
-
-showEnvelopeShape :: Shape -> Shape
-showEnvelopeShape shape = rectangle w h
-  where (Envelope w h) = sEnvelope shape
-
-showEnvelopeForm :: Shape -> Form
-showEnvelopeForm = (outlined defaultLineStyle { color = (1, 0, 0) }) . showEnvelopeShape
 
 -- Used for text drawing:
 standardContext :: PangoContext

@@ -4,6 +4,7 @@ import Graphics.UI.Gtk hiding (eventSent)
 import Graphics.UI.Gtk.Gdk.Events (Event, eventSent)
 import Graphics.Rendering.Cairo hiding (rectangle)
 import ReactiveDraw
+import DrawTypes hiding (Color)
 
 main :: IO ()
 main = do
@@ -39,8 +40,16 @@ windowProperties = [
 
 myDraw :: Render ()
 myDraw = do
+  {-
+  let midx = 400
+      midy = 300
+  translate midx midy
+  rotate $ (3 / 4) * pi
   fDraw $ positioned [
     ((0, 0), outlinedCol (1, 0, 0) $ circle 20),
-    ((40, 0), text "This is another test...")]
+    ((40, 0), text "This is another test...") ]
+  translate (-midx) (-midy)
+  -}
+  fDraw $ outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 5 } $ circle 40
 
   return ()
