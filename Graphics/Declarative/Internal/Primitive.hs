@@ -1,7 +1,6 @@
-module Primitive where
+module Graphics.Declarative.Internal.Primitive where
 
 import qualified Graphics.Rendering.Cairo as Cairo
-import DrawTypes
 
 data Primitive 
   = Arc { xc :: Double, yc :: Double, radius :: Double, startAngle :: Double, endAngle :: Double }
@@ -38,22 +37,3 @@ renderPathOp (RelMoveTo dx dy)                    = Cairo.relMoveTo dx dy
 
 renderPath :: [PathOp] -> Cairo.Render ()
 renderPath = mapM_ renderPathOp
-
-applyLineStyle :: LineStyle -> Cairo.Render ()
-applyLineStyle style = do
-  Cairo.setSourceRGB r g b
-  Cairo.setLineWidth $ lineWidth style
-  Cairo.setLineCap $ convertLineCap $ cap style
-  Cairo.setLineJoin $ convertLineJoin $ join style
-  Cairo.setDash (dash style) (dashOffset style)
-  where
-    (r, g, b) = color style
-
-convertLineCap :: LineCap -> Cairo.LineCap
-convertLineCap Flat = Cairo.LineCapButt
-convertLineCap Round = Cairo.LineCapRound
-convertLineCap Padded = Cairo.LineCapSquare
-
-{- TODOOOOOOO FIX -}
-convertLineJoin :: LineJoin -> Cairo.LineJoin
-convertLineJoin _ = Cairo.LineJoinRound
