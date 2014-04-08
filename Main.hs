@@ -4,7 +4,6 @@ import Graphics.UI.Gtk hiding (eventSent)
 import Graphics.UI.Gtk.Gdk.Events (Event, eventSent)
 import Graphics.Rendering.Cairo hiding (rectangle)
 import ReactiveDraw
-import DrawTypes hiding (Color)
 
 main :: IO ()
 main = do
@@ -40,13 +39,8 @@ windowProperties = [
 
 myDraw :: Render ()
 myDraw = do
-  draw $ positionArbitrary [
-    ((0, 0), {-debugEnvelope $-} filled (0.5, 0.5, 0.5) $ circle 20),
-    ((40, 0), {-debugEnvelope $-} outlined defaultLineStyle { color = (0, 1, 0) } $ circle 25) ]
-
-  let mytext = text "This is a test String..."
-
-  draw $ positionArbitrary [((0, 50), mytext)]
-  --draw $ positionArbitrary [((0, 50), showEnvelopeForm mytext)]
+  fDraw $ positioned [
+    ((0, 0), outlinedCol (1, 0, 0) $ circle 20),
+    ((40, 0), text "This is another test...")]
 
   return ()

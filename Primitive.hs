@@ -1,7 +1,6 @@
 module Primitive where
 
 import qualified Graphics.Rendering.Cairo as Cairo
-import qualified Graphics.Rendering.Cairo.Types as Cairo
 import DrawTypes
 
 data Primitive 
@@ -19,28 +18,6 @@ data PathOp
   | MoveTo { x :: Double, y :: Double }
   | RelMoveTo { dx :: Double, dy :: Double }
   deriving (Show, Eq)
-
-data Formify
-  = Clip
-  | Fill Color Cairo.FillRule
-  | Stroke LineStyle
-  | Mask Cairo.Pattern
-  | MaskSurface Cairo.Surface Double Double
-
-instance Show Formify where
-  show Clip = "Clip"
-  show (Fill col _) = "Fill " ++ show col ++ " *rule*"
-  show (Stroke style) = "Stroke " ++ show style
-  show (Mask _) = "Mask *pattern*"
-  show (MaskSurface _ xorig yorig) = "MaskSurface *surface*" ++ show xorig ++ " " ++ show yorig
-
-instance Eq Formify where
-  Clip == Clip = True
-  (Fill col1 rule1) == (Fill col2 rule2) = col1 == col2 && rule1 == rule2
-  (Stroke style1) == (Stroke style2) = style1 == style2
-  (Mask (Cairo.Pattern ptr1)) == (Mask (Cairo.Pattern ptr2)) = ptr1 == ptr2
-  (MaskSurface (Cairo.Surface ptr1) xo1 yo1) == (MaskSurface (Cairo.Surface ptr2) xo2 yo2) = ptr1 == ptr2 && xo1 == xo2 && yo1 == yo2
-  _ == _ = False
 
 renderPrim :: Primitive -> Cairo.Render ()
 renderPrim (Arc xc yc radius startAngle endAngle)    = Cairo.arc xc yc radius startAngle endAngle
@@ -62,21 +39,13 @@ renderPathOp (RelMoveTo dx dy)                    = Cairo.relMoveTo dx dy
 renderPath :: [PathOp] -> Cairo.Render ()
 renderPath = mapM_ renderPathOp
 
-applyFormify :: Formify -> Cairo.Render ()
-applyFormify Clip = Cairo.clip
-applyFormify (Stroke style) = applyLineStyle style >> Cairo.stroke
-applyFormify (Fill (r, g, b) rule) = do
-  Cairo.setFillRule rule
-  Cairo.setSourceRGB r g b
-  Cairo.fill
-
 applyLineStyle :: LineStyle -> Cairo.Render ()
 applyLineStyle style = do
   Cairo.setSourceRGB r g b
   Cairo.setLineWidth $ lineWidth style
   Cairo.setLineCap $ convertLineCap $ cap style
   Cairo.setLineJoin $ convertLineJoin $ join style
-  {- TODOOO Dash -}
+  Cairo.setDash (dash style) (dashOffset style)
   where
     (r, g, b) = color style
 

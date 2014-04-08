@@ -6,9 +6,7 @@ import Graphics.UI.Gtk hiding (Color)
 import System.IO.Unsafe (unsafePerformIO)
 import DrawTypes
 
-class Renderable a where
-  envelope :: a -> Envelope
-  draw :: a -> Cairo.Render ()
+type Position = (Double, Double)
 
 data Shape = Shape {
   sEnvelope :: Envelope,
@@ -21,20 +19,8 @@ data Envelope = Envelope {
 } deriving (Show, Eq)
 
 data Form = Form {
-  fFormification :: Prim.Formify,
-  fShape :: Shape
-} deriving (Show, Eq)
-
-data Text = Text {
-  tEnvelope :: Envelope,
-  tContent :: String
-}
-
-type Position = (Double, Double)
-
-data Collage renderable = Collage {
-  cEnvelope :: Envelope,
-  cForms :: [(Position, renderable)]
+  fEnvelope :: Envelope,
+  fDraw :: Cairo.Render ()
 }
 
 circle :: Double -> Shape
@@ -50,52 +36,55 @@ rectangle width height = Shape {
 }
 
 filled :: Color -> Shape -> Form
-filled = filledWithRule Cairo.FillRuleWinding
-
-filledWithRule :: Cairo.FillRule -> Color -> Shape -> Form
-filledWithRule rule col s = Form {
-  fFormification = Prim.Fill col rule,
-  fShape = s
+filled (r, g, b) shape = Form {
+  fEnvelope = sEnvelope shape,
+  fDraw = do
+    Cairo.save
+    Cairo.setSourceRGB r g b
+    Prim.renderPrimitives $ sPrims shape
+    Cairo.fill
+    Cairo.restore
 }
+
+{- Not really necessary? Exposes Cairo type
+filledWithRule :: Cairo.FillRule -> Color -> Shape -> Form
+filledWithRule rule (r, g, b) shape = Form {
+  fEnvelope = sEnvelope shape,
+  fDraw = do
+    Cairo.save
+    Cairo.setSourceRGB r g b
+    Cairo.setFillRule rule
+    Prim.renderPrimitives $ sPrims shape
+    Cairo.fill
+    Cairo.restore
+}
+-}
 
 outlined :: LineStyle -> Shape -> Form
-outlined style s = Form {
-  fFormification = Prim.Stroke style,
-  fShape = s
+outlined style shape = Form {
+  fEnvelope = sEnvelope shape,
+  fDraw = do
+    Cairo.save
+    Prim.applyLineStyle style
+    Prim.renderPrimitives $ sPrims shape
+    Cairo.stroke
+    Cairo.restore
 }
 
-{- TODO: Think... Create PangoLayout twice, or save it inside data Text? -}
-text :: String -> Text
-text content = Text {
-  tEnvelope = Envelope width height,
-  tContent = content
+outlinedCol :: Color -> Shape -> Form
+outlinedCol col = outlined defaultLineStyle { color = col }
+
+text :: String -> Form
+text content = Form {
+  fEnvelope = Envelope width height,
+  fDraw = do
+    Cairo.save
+    showLayout pLayout
+    Cairo.restore
 } where
   pLayout :: PangoLayout
   pLayout = unsafePerformIO $ layoutText standardContext content
   (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
-
-instance Renderable Form where
-  envelope = sEnvelope . fShape
-  draw (Form formification shape) = do
-    Prim.renderPrimitives $ sPrims $ shape
-    Prim.applyFormify $ formification
-
-instance Renderable f => Renderable (Collage f) where
-  envelope = cEnvelope
-  draw (Collage _ renderables) = do
-    mapM_ (\((x, y), renderable) -> do
-      Cairo.save
-      Cairo.translate x y
-      draw renderable
-      Cairo.restore) renderables
-
-instance Renderable Text where
-  envelope = tEnvelope
-  draw (Text _ content) = do
-    pLayout <- Cairo.liftIO $ layoutText standardContext content
-    Cairo.save
-    showLayout pLayout
-    Cairo.restore
 
 empty :: Shape
 empty = blank 0 0
@@ -106,82 +95,27 @@ blank w h = onlyEnvelope $ Envelope w h
 onlyEnvelope :: Envelope -> Shape
 onlyEnvelope env = Shape env []
 
-{- TODO: Not that easy again.. What if somebody wants to create a Collage with Text and Form? -}
-positionArbitrary :: Renderable r => [(Position, r)] -> Collage r
-positionArbitrary positionList = Collage {
-  cEnvelope = Envelope 0 0,
-  cForms = positionList
+positioned :: [(Position, Form)] -> Form
+positioned positionList = Form {
+  fEnvelope = Envelope 0 0,
+  fDraw = do
+    mapM_ (\((x, y), form) -> do
+      Cairo.save
+      Cairo.translate x y
+      fDraw form
+      Cairo.restore) positionList
 }
 
-collageSingleton :: Renderable r => r -> Collage r
-collageSingleton renderable = Collage {
-  cEnvelope = envelope renderable,
-  cForms = [((0, 0), renderable)]
-}
+overlayed :: [Form] -> Form
+overlayed rs = positioned $ map (\r -> ((0, 0), r)) rs
 
-overlay :: Renderable r => [r] -> Collage r
-overlay rs = positionArbitrary $ map (\r -> ((0, 0), r)) rs
+showEnvelopeShape :: Shape -> Shape
+showEnvelopeShape shape = rectangle w h
+  where (Envelope w h) = sEnvelope shape
 
-showEnvelopeShape :: Renderable r => r -> Shape
-showEnvelopeShape r = rectangle w h
-  where (Envelope w h) = envelope r
-
-showEnvelopeForm :: Renderable r => r -> Form
+showEnvelopeForm :: Shape -> Form
 showEnvelopeForm = (outlined defaultLineStyle { color = (1, 0, 0) }) . showEnvelopeShape
-
-debugEnvelope :: Form -> Collage Form
-debugEnvelope form = overlay [form, showEnvelopeForm form]
 
 -- Used for text drawing:
 standardContext :: PangoContext
 standardContext = unsafePerformIO $ cairoCreateContext Nothing
-
-{-
-
-text :: String -> Graphic
-text content = Graphic {
-  envelope = Envelope width height,
-  draw = do
-    Cairo.save
-    showLayout pLayout
-    Cairo.restore
-} where
-  pLayout :: PangoLayout
-  pLayout = unsafePerformIO $ layoutText standardContext content
-  (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
-
-besides :: Axis -> Double -> [Graphic] -> Graphic
-besides _ _ [] = empty
-besides axis gap graphics = Graphic {
-  envelope = 
-    case axis of
-      Horiz -> Envelope ((sum $ map (envWidth . envelope) graphics) + totalGaps) (maximum $ map (envHeight . envelope) graphics)
-      Vert  -> Envelope (maximum $ map (envWidth . envelope) graphics) ((sum $ map (envHeight . envelope) graphics) + totalGaps),
-  draw = do
-    Cairo.save
-    mapM (\graphic -> do
-      let Envelope gWidth gHeight = envelope graphic
-      draw graphic
-      case axis of
-        Horiz -> Cairo.translate (gWidth + gap) 0
-        Vert  -> Cairo.translate 0 (gHeight + gap))
-      graphics
-    Cairo.restore
-} where totalGaps = (fromIntegral $ length graphics) * gap
-
-circlePath :: Double -> Cairo.Render ()
-circlePath radius = do
-  Cairo.arc
-    radius   -- center x
-    radius   -- center y
-    radius   -- the actual radius
-    0        -- start angle in radians
-    (2 * pi) -- end angle in radians
-
-rectanglePath :: Double -> Double -> Cairo.Render ()
-rectanglePath width height = Cairo.rectangle 0 0 width height
-
-evaluateStyle :: PathStyle -> Cairo.Render ()
-evaluateStyle Stroke = Cairo.stroke
-evaluateStyle Filled = Cairo.fill
--}
