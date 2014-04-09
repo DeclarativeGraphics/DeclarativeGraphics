@@ -60,24 +60,8 @@ outlined style shape = Form {
     Cairo.restore
 }
 
-outlinedCol :: Color -> Shape -> Form
-outlinedCol col = outlined defaultLineStyle { color = col }
-
-text :: String -> Form
-text content = Form {
-  fEnvelope = Envelope 0 0 width height,
-  fDraw = do
-    Cairo.save
-    showLayout pLayout
-    Cairo.restore
-} where
-  pLayout :: PangoLayout
-  pLayout = unsafePerformIO $ layoutText standardContext content
-  (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
-
--- Used for text drawing:
-standardContext :: PangoContext
-standardContext = unsafePerformIO $ cairoCreateContext Nothing
+solid :: Color -> LineStyle
+solid col = defaultLineStyle { color = col }
 
 applyLineStyle :: LineStyle -> Cairo.Render ()
 applyLineStyle style = do
@@ -98,3 +82,65 @@ convertLineJoin :: LineJoin -> Cairo.LineJoin
 convertLineJoin Clipped = Cairo.LineJoinBevel
 convertLineJoin Smooth = Cairo.LineJoinRound
 convertLineJoin Sharp = Cairo.LineJoinMiter
+
+text :: String -> Form
+text content = Form {
+  fEnvelope = Envelope 0 0 width height,
+  fDraw = do
+    Cairo.save
+    showLayout pLayout
+    Cairo.restore
+} where
+  pLayout :: PangoLayout
+  pLayout = unsafePerformIO $ layoutText standardContext content
+  (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
+
+-- Used for text drawing:
+standardContext :: PangoContext
+standardContext = unsafePerformIO $ cairoCreateContext Nothing
+
+moved :: (Double, Double) -> Form -> Form
+moved dist (Form env rend) = Form {
+  fEnvelope = moveEnvelope dist env,
+  fDraw = do
+    Cairo.save
+    uncurry Cairo.translate dist
+    rend
+    Cairo.restore
+}
+
+atop :: Form -> Form -> Form
+atop (Form env1 rend1) (Form env2 rend2) = Form {
+  fEnvelope = envelopeAtop env1 env2,
+  fDraw = rend2 >> rend1
+}
+
+paddedWith :: (Double, Double) -> Form -> Form
+paddedWith (padX, padY) (Form (Envelope l t r b) rend) = Form {
+  fEnvelope = Envelope (l-padX) (t-padY) (r+padX) (b+padY),
+  fDraw = rend
+}
+
+padded :: Double -> Form -> Form
+padded padding = paddedWith (padding, padding)
+
+originatedRel :: (Double, Double) -> Form -> Form
+originatedRel (relX, relY) form@(Form (Envelope l t r b) rend) = 
+  moved (relX * (l-r), relY * (t-b)) $ moved (-l, -t) form
+
+centered :: Form -> Form
+centered = originatedRel (0.5, 0.5)
+
+modifiedEnvelope :: (Envelope -> Envelope) -> Form -> Form
+modifiedEnvelope modify form = form `withEnvelope` (modify (fEnvelope form))
+
+withEnvelope :: Form -> Envelope -> Form
+withEnvelope (Form _ rend) envelope = Form envelope rend
+
+debugEnvelope :: Form -> Form
+debugEnvelope form = 
+  (outlined (solid (1, 0, 0)) $ circle 2)
+  `atop`
+  (outlined (solid (1, 0, 0)) $ fromEnvelope $ fEnvelope form)
+  `atop`
+  form

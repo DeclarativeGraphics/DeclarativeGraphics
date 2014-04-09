@@ -28,3 +28,9 @@ blankCentered w h = onlyEnvelope $ Envelope (-w/2) (-h/2) (w/2) (h/2)
 
 onlyEnvelope :: Envelope -> Shape
 onlyEnvelope env = Shape env []
+
+fromEnvelope :: Envelope -> Shape
+fromEnvelope env@(Envelope l t r b) = Shape {
+  sEnvelope = env,
+  sPrims = [Prim.Rectangle l t (r-l) (b-t)]
+}
