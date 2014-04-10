@@ -1,7 +1,7 @@
 # Declarative Graphics / Shapes
 
 (Example rendered Image:)
-![TitleSVG](https://raw.githubusercontent.com/matheus23/DeclarativeGraphics/master/testRender.svg)
+![TitleSVG](https://rawgithub.com/matheus23/DeclarativeGraphics/master/testRender.svg)
 
 The aim is to create a functional, declarative Shape rendering library. It also features Text rendering.
 
