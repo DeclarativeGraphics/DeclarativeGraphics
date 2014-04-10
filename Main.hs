@@ -9,7 +9,13 @@ import Graphics.Declarative.Combinators
 import Graphics.Declarative.Envelope
 
 main :: IO ()
-main = do
+main = makeSvg 800 600
+
+makeSvg :: Double -> Double -> IO ()
+makeSvg w h = withSVGSurface "testRender.svg" (realToFrac w) (realToFrac h) (\surface -> renderWith surface (myDraw w h))
+
+openGTK :: IO ()
+openGTK = do
   initGUI
   window <- windowNew
   set window windowProperties
@@ -49,11 +55,11 @@ myDraw w h = do
 
 picture0 :: Form
 picture0 = centered $
-  besides downAttach [
-    centered $ text "besides rightAttach:",
-    debugEnvelope $ padded $ besides rightAttach [ formA, formB ],
-    centered $ text "besides leftAttach:",
-    debugEnvelope $ padded $ besides leftAttach [ formA, formB ] ]
+  groupBy downAttach [
+    centered $ text "groupBy rightAttach:",
+    debugEnvelope $ padded 4 $ groupBy rightAttach [ formA, formB ],
+    centered $ text "groupBy leftAttach:",
+    debugEnvelope $ padded 4 $ groupBy leftAttach [ formA, formB ] ]
   where
     formA = outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40
     formB = outlined (solid (0, 1, 0)) $ rectangle 80 80
@@ -62,12 +68,12 @@ picture1 :: Form
 picture1 = outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40
 
 picture2 :: Form
-picture2 = besides downAttach [
+picture2 = groupBy downAttach [
   outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40,
   outlined (solid (0, 1, 0)) $ rectangle 50 50 ]
 
 picture3 :: Form
 picture3 = centered $
-  besides downAttach [
+  groupBy downAttach [
     outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40,
     outlined (solid (0, 1, 0)) $ rectangle 50 50 ]

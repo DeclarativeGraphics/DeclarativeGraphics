@@ -24,5 +24,5 @@ downAttach lowerForm upperForm = neighbored (0, neighborDistanceY lowerForm uppe
 upAttach :: Form -> Form -> Form
 upAttach lowerForm upperForm = neighbored (0, -neighborDistanceY lowerForm upperForm) upperForm lowerForm
 
-besides :: (Form -> Form -> Form) -> [Form] -> Form
-besides = foldr1
+groupBy :: (Form -> Form -> Form) -> [Form] -> Form
+groupBy = foldr1
