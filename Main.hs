@@ -9,7 +9,10 @@ import Graphics.Declarative.Combinators
 import Graphics.Declarative.Envelope
 
 main :: IO ()
-main = makeSvg "titleImage.svg" 800 600
+main = openGTK
+
+createTitleImage :: IO ()
+createTitleImage = makeSvg "titleImage.svg" 400 300
 
 makeSvg :: FilePath -> Double -> Double -> IO ()
 makeSvg path w h = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (myDraw w h))
