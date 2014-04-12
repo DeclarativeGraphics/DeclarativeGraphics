@@ -15,7 +15,7 @@ picture0 = centered $
     formA = outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40
     formB = outlined (solid (0, 1, 0)) $ rectangle 80 80
 ```
-(https://github.com/matheus23/DeclarativeGraphics/blob/master/Main.hs#L59))
+(https://github.com/matheus23/DeclarativeGraphics/blob/master/Main.hs#L59 ))
 
 The aim is to create a functional, declarative Shape rendering library. It also features Text rendering.
 
