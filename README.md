@@ -1,7 +1,7 @@
 # Declarative Graphics / Shapes
 
 (Example rendered Image:)
-![TitleSVG](https://rawgithub.com/matheus23/DeclarativeGraphics/master/testRender.svg)
+![TitleSVG](https://rawgithub.com/matheus23/DeclarativeGraphics/master/titleImage.svg)
 (Code to generate this image:
 ```haskell
 picture0 :: Form
