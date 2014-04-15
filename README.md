@@ -11,7 +11,8 @@ picture0 = centered $
     centered $ text "groupBy leftAttach",
     debugEnvelope $ padded 4 $ groupBy leftAttach [ formA, formB ] ]
   where
-    formA = outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40
+    thickOrangeLine = defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 }
+    formA = outlined thickOrangeLine $ circle 40
     formB = outlined (solid (0, 1, 0)) $ rectangle 80 80
 ```
 
