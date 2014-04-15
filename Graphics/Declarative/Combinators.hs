@@ -25,4 +25,5 @@ upAttach :: Form -> Form -> Form
 upAttach lowerForm upperForm = neighbored (0, -neighborDistanceY lowerForm upperForm) upperForm lowerForm
 
 groupBy :: (Form -> Form -> Form) -> [Form] -> Form
-groupBy = foldr1
+groupBy _ [] = emptyForm
+groupBy func ls = foldr1 func ls

@@ -34,9 +34,32 @@ defaultLineStyle = LineStyle {
   dashOffset = 0
 }
 
+data TextStyle = TextStyle {
+  textColor :: Color,
+  bold :: Bool,
+  italic :: Bool,
+  fontSize :: Double,
+  fontFamily :: String
+} deriving (Show, Eq)
+
+defaultTextStyle :: TextStyle
+defaultTextStyle = TextStyle {
+  textColor = (0, 0, 0),
+  bold = False,
+  italic = False,
+  fontSize = 14,
+  fontFamily = "Sans"
+}
+
 data LineCap = Flat | Round | Padded deriving (Show, Eq)
 data LineJoin = Clipped | Smooth | Sharp deriving (Show, Eq)
 
+
+emptyForm :: Form
+emptyForm = Form {
+  fEnvelope = Envelope 0 0 0 0,
+  fDraw = return ()
+}
 
 filled :: Color -> Shape -> Form
 filled (r, g, b) shape = Form {
@@ -83,17 +106,36 @@ convertLineJoin Clipped = Cairo.LineJoinBevel
 convertLineJoin Smooth = Cairo.LineJoinRound
 convertLineJoin Sharp = Cairo.LineJoinMiter
 
-text :: String -> Form
-text content = Form {
+text :: TextStyle -> String -> Form
+text style content = Form {
   fEnvelope = Envelope 0 0 width height,
   fDraw = do
     Cairo.save
+    Cairo.setSourceRGB r g b
     showLayout pLayout
     Cairo.restore
 } where
+  getFontDescription :: IO FontDescription
+  getFontDescription = do
+    desc <- fontDescriptionNew
+    fontDescriptionSetStyle desc $
+      if (italic style) then StyleItalic else StyleNormal
+    fontDescriptionSetWeight desc $
+      if (bold style) then WeightBold else WeightNormal
+    fontDescriptionSetSize desc $ fontSize style
+    fontDescriptionSetFamily desc $ fontFamily style
+    return desc
+  getContext :: FontDescription -> IO PangoContext
+  getContext fontDescription = do
+    context <- cairoCreateContext Nothing
+    contextSetFontDescription context fontDescription
+    return context
   pLayout :: PangoLayout
-  pLayout = unsafePerformIO $ layoutText standardContext content
+  pLayout = unsafePerformIO $ do
+    pContext <- getContext =<< getFontDescription
+    layoutText pContext content
   (_, PangoRectangle _ _ width height) = unsafePerformIO $ layoutGetExtents pLayout
+  (r, g, b) = textColor style
 
 -- Used for text drawing:
 standardContext :: PangoContext

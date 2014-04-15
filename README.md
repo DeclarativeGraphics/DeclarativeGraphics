@@ -7,13 +7,13 @@ picture0 :: Form
 picture0 = centered $
   groupBy downAttach [
     centered $ text "groupBy rightAttach",
-    debugEnvelope $ padded 4 $ groupBy rightAttach [ formA, formB ],
+    debugEnvelope $ padded 4 $ groupBy rightAttach [ orangeCircle, greenRectangle ],
     centered $ text "groupBy leftAttach",
-    debugEnvelope $ padded 4 $ groupBy leftAttach [ formA, formB ] ]
+    debugEnvelope $ padded 4 $ groupBy leftAttach [ orangeCircle, greenRectangle ] ]
   where
     thickOrangeLine = defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 }
-    formA = outlined thickOrangeLine $ circle 40
-    formB = outlined (solid (0, 1, 0)) $ rectangle 80 80
+    orangeCircle = outlined thickOrangeLine $ circle 40
+    greenRectangle = outlined (solid (0, 1, 0)) $ rectangle 80 80
 ```
 
 Produces this Image:
@@ -22,17 +22,17 @@ Produces this Image:
 
 The aim is to create a functional, declarative Shape rendering library. It also features Text rendering.
 
-## Libraries used:
+## Libraries used
 
 * Cairo: Rendering Backend for Shapes
 * Pango: Rendering Backend for Text
 * Gtk: Backend for rendering to Window.
 
-## Inspirations:
+## Inspirations
 
 * [Racket Picts](http://docs.racket-lang.org/quick/)
 * API Heavily inspired by: [Elm Collages](http://library.elm-lang.org/catalog/evancz-Elm/0.12/Graphics-Collage)
 
-## Similar Projects:
+## Similar Projects
 
 * [Diagrams](http://projects.haskell.org/diagrams/)
