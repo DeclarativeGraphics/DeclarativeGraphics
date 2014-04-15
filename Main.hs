@@ -6,19 +6,19 @@ import Graphics.Rendering.Cairo hiding (rectangle)
 import Graphics.Declarative.Form hiding (Color)
 import Graphics.Declarative.Shape
 import Graphics.Declarative.Combinators
-import Graphics.Declarative.Envelope
 
 main :: IO ()
-main = openGTK
+main = openGTK picture0
+--main = createTitleImage picture0
 
-createTitleImage :: IO ()
-createTitleImage = makeSvg "titleImage.svg" 400 300
+createTitleImage :: Form -> IO ()
+createTitleImage form = makeSvg form "titleImage.svg" 400 300
 
-makeSvg :: FilePath -> Double -> Double -> IO ()
-makeSvg path w h = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (myDraw w h))
+makeSvg :: Form -> FilePath -> Double -> Double -> IO ()
+makeSvg form path w h = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (drawForm form w h))
 
-openGTK :: IO ()
-openGTK = do
+openGTK :: Form -> IO ()
+openGTK form = do
   initGUI
   window <- windowNew
   set window windowProperties
@@ -29,15 +29,15 @@ openGTK = do
   widgetModifyBg canvas StateNormal white
   widgetShowAll window
 
-  onExpose canvas (handleExpose canvas)
+  onExpose canvas (handleExpose form canvas)
   onDestroy window mainQuit
   mainGUI 
 
-handleExpose :: WidgetClass w => w -> Event -> IO Bool
-handleExpose canvas event = do
+handleExpose :: WidgetClass w => Form -> w -> Event -> IO Bool
+handleExpose form canvas event = do
   (w, h) <- widgetGetSize canvas
   drawin <- widgetGetDrawWindow canvas
-  renderWithDrawable drawin (myDraw (fromIntegral w) (fromIntegral h))
+  renderWithDrawable drawin (drawForm form (fromIntegral w) (fromIntegral h))
   return (eventSent event)
 
 white :: Color
@@ -50,18 +50,17 @@ windowProperties = [
   windowDefaultHeight  := 600,
   containerBorderWidth := 0 ]
 
-myDraw :: Double -> Double -> Render ()
-myDraw w h = do
-  let pict = picture0
-  fDraw $ moved (w / 2, h / 2) $ {-debugEnvelope $-} pict
-  --liftIO $ print $ fEnvelope pict
+drawForm :: Form -> Double -> Double -> Render ()
+drawForm form w h = do
+  fDraw $ moved (w / 2, h / 2) $ {-debugEnvelope $-} form
+  --liftIO $ print $ fEnvelope form
 
 picture0 :: Form
 picture0 = centered $
   groupBy downAttach [
-    centered $ text "groupBy rightAttach:",
+    centered $ text "groupBy rightAttach",
     debugEnvelope $ padded 4 $ groupBy rightAttach [ formA, formB ],
-    centered $ text "groupBy leftAttach:",
+    centered $ text "groupBy leftAttach",
     debugEnvelope $ padded 4 $ groupBy leftAttach [ formA, formB ] ]
   where
     formA = outlined defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 } $ circle 40
