@@ -3,27 +3,35 @@ module Graphics.Declarative.Combinators where
 import Graphics.Declarative.Form
 import Graphics.Declarative.Envelope
 
-neighbored :: (Double, Double) -> Form -> Form -> Form
-neighbored (distX, distY) formOnTop formBelow = formOnTop `atop` (moved (distX, distY) formBelow)
+liftToForm2 :: (Envelope -> Envelope -> a) -> (Form -> Form -> a)
+liftToForm2 func = \form1 form2 -> func (fEnvelope form1) (fEnvelope form2)
 
-neighborDistanceX :: Form -> Form -> Double
-neighborDistanceX leftForm rightForm = envToRight (fEnvelope leftForm) - envToLeft (fEnvelope rightForm)
+movedBesideWith :: (Envelope -> Envelope -> (Double, Double)) -> Form -> Form -> Form
+movedBesideWith moveFunc referenceForm formToMove = moved move formToMove
+  where move = moveFunc (fEnvelope referenceForm) (fEnvelope formToMove)
 
-neighborDistanceY :: Form -> Form -> Double
-neighborDistanceY leftForm rightForm = envToBottom (fEnvelope leftForm) - envToTop (fEnvelope rightForm)
+moveAllBesideWith :: (Envelope -> Envelope -> (Double, Double)) -> [Form] -> [Form]
+moveAllBesideWith moveFunc forms = scanl1 combine forms
+  where combine form1 form2 = moved ((liftToForm2 moveFunc) form1 form2) form2
 
-rightAttach :: Form -> Form -> Form
-rightAttach leftForm rightForm = neighbored (neighborDistanceX leftForm rightForm, 0) leftForm rightForm
-
-leftAttach :: Form -> Form -> Form
-leftAttach leftForm rightForm = neighbored (-neighborDistanceX leftForm rightForm, 0) rightForm leftForm
-
-downAttach :: Form -> Form -> Form
-downAttach lowerForm upperForm = neighbored (0, neighborDistanceY lowerForm upperForm) lowerForm upperForm
-
-upAttach :: Form -> Form -> Form
-upAttach lowerForm upperForm = neighbored (0, -neighborDistanceY lowerForm upperForm) upperForm lowerForm
-
-groupBy :: (Form -> Form -> Form) -> [Form] -> Form
+groupBy :: (Envelope -> Envelope -> (Double, Double)) -> [Form] -> Form
 groupBy _ [] = emptyForm
-groupBy func ls = foldr1 func ls
+groupBy moveFunc forms = foldr1 combine forms
+  where combine form1 form2 = form1 `atop` moved ((liftToForm2 moveFunc) form1 form2) form2
+
+toRight :: Envelope -> Envelope -> (Double, Double)
+toRight leftNeighbor rightNeighbor =
+  (envToRight leftNeighbor - envToLeft rightNeighbor, 0)
+
+toLeft :: Envelope -> Envelope -> (Double, Double)
+toLeft rightNeighbor leftNeighbor =
+  (envToLeft rightNeighbor - envToRight leftNeighbor, 0)
+
+toTop :: Envelope -> Envelope -> (Double, Double)
+toTop bottomNeighbor topNeighbor =
+  (0, envToTop bottomNeighbor - envToBottom topNeighbor)
+
+toBottom :: Envelope -> Envelope -> (Double, Double)
+toBottom topNeighbor bottomNeighbor =
+  (0, envToBottom topNeighbor - envToTop bottomNeighbor)
+

@@ -15,6 +15,13 @@ build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
 
+library
+  exposed-modules:     Graphics.Declarative.Form, Graphics.Declarative.Envelope, Graphics.Declarative.Combinators,
+                       Graphics.Declarative.Shape, Graphics.Declarative.Util.SyntaxText
+  other-modules:       Graphics.Declarative.Internal.Primitive
+  build-depends:       base >=4.6 && <4.7,
+                       cairo, gtk, pango, highlighting-kate
+
 executable DemoSourceCode
   main-is:             Demos/DemoSourceCode.hs
   -- other-modules:       

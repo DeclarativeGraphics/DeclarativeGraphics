@@ -13,6 +13,7 @@ envelopeCenteredRect width height = Envelope (-width / 2) (-height / 2) (width /
 envelopeCenteredCircle :: Double -> Envelope
 envelopeCenteredCircle radius = Envelope (-radius) (-radius) radius radius
 
+-- Be careful! This doesn't magically move the Graphical Representation of the Form with it!
 moveEnvelope :: (Double, Double) -> Envelope -> Envelope
 moveEnvelope (x, y) (Envelope l t r b) = Envelope (l+x) (t+y) (r+x) (b+y)
 

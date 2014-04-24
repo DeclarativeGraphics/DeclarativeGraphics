@@ -6,18 +6,19 @@ import Text.Highlighting.Kate
 import Data.Maybe (fromMaybe)
 
 highlightedHaskell :: String -> Form
-highlightedHaskell = highlightedSource monoStyle kate "haskell"
+highlightedHaskell = highlightedSource monoStyle tango "haskell"
   where monoStyle = defaultTextStyle { fontFamily = "Monospace", fontSize = 8 }
 
 highlightedSource :: TextStyle -> Style -> String -> String -> Form
 highlightedSource tstyle style language = (renderSource tstyle style) . (highlightAs language)
 
 renderSource :: TextStyle -> Style -> [SourceLine] -> Form
-renderSource tstyle style sourceLines = groupBy downAttach $ map (renderLine tstyle style) sourceLines
+renderSource tstyle style sourceLines = groupBy toBottom $ map (renderLine tstyle style) sourceLines
 
 -- info: type SourceLine = [Token]
 renderLine :: TextStyle -> Style -> SourceLine -> Form
-renderLine tstyle style tokens = groupBy rightAttach $ map (renderToken tstyle style) tokens
+renderLine tstyle style []     = text tstyle " "
+renderLine tstyle style tokens = groupBy toRight $ map (renderToken tstyle style) tokens
 
 -- info: type Token = (TokenType, String)
 renderToken :: TextStyle -> Style -> Token -> Form

@@ -6,15 +6,17 @@ import Graphics.Declarative.Shape
 import Graphics.Declarative.Combinators
 
 main :: IO ()
-main = openGTK picture
+main = do
+  source <- readFile "Demos/DemoShapes.hs"
+  openGTK $ showSourceAndProduct source picture
 --main = createTitleImage picture
 
 picture :: Form
-picture = groupBy downAttach [
-  centered $ text defaultTextStyle "groupBy rightAttach",
-  debugEnvelope $ padded 4 $ groupBy rightAttach [ orangeCircle, greenRectangle ],
-  centered $ text defaultTextStyle "groupBy leftAttach",
-  debugEnvelope $ padded 4 $ groupBy leftAttach [ orangeCircle, greenRectangle ] ]
+picture = groupBy toBottom [
+  centered $ text defaultTextStyle "groupBy toRight",
+  debugEnvelope $ padded 4 $ groupBy toRight [ orangeCircle, greenRectangle ],
+  centered $ text defaultTextStyle "groupBy toLeft",
+  debugEnvelope $ padded 4 $ groupBy toLeft [ orangeCircle, greenRectangle ] ]
   where
     thickOrangeLine = defaultLineStyle { color = (1, 0.5, 0), lineWidth = 2 }
     orangeCircle = outlined thickOrangeLine $ circle 40

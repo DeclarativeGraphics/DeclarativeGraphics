@@ -12,7 +12,7 @@ main = do
   openGTK $ sourceCode source
 
 sourceCode :: String -> Form
-sourceCode source = groupBy downAttach $ 
+sourceCode source = groupBy toBottom $ 
   map makeSource [ pygments, kate, espresso, tango, haddock, monochrome, zenburn ]
   where
     makeSource style = padded 10 $ highlightedSource textStyle style "haskell" source

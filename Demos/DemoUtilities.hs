@@ -4,18 +4,26 @@ import Graphics.UI.Gtk hiding (eventSent)
 import Graphics.UI.Gtk.Gdk.Events (Event, eventSent)
 import Graphics.Rendering.Cairo hiding (rectangle)
 import Graphics.Declarative.Form hiding (Color)
+import Graphics.Declarative.Envelope
+import Graphics.Declarative.Combinators
+import Graphics.Declarative.Util.SyntaxText
 
 createTitleImage :: Form -> IO ()
-createTitleImage form = makeSvg form "titleImage.svg" 400 300
+createTitleImage form = makeSvg form "titleImage.svg" 0.5
 
-makeSvg :: Form -> FilePath -> Double -> Double -> IO ()
-makeSvg form path w h = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (drawForm form w h))
+makeSvg :: Form -> FilePath -> Double -> IO ()
+makeSvg form path scale = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (drawForm form w h))
+  where
+    (ws, hs) = envelopeSize $ fEnvelope form
+    w = ws * scale + 10
+    h = hs * scale + 10
 
 openGTK :: Form -> IO ()
 openGTK form = do
+  let (w, h) = envelopeSize $ fEnvelope form
   initGUI
   window <- windowNew
-  set window windowProperties
+  set window (windowProperties (w+10) (h+10))
 
   canvas <- drawingAreaNew
   containerAdd window canvas
@@ -37,13 +45,16 @@ handleExpose form canvas event = do
 white :: Color
 white = Color 65535 65535 65535
 
-windowProperties :: [AttrOp Window]
-windowProperties = [
+windowProperties :: Double -> Double -> [AttrOp Window]
+windowProperties width height = [
   windowTitle          := "Hello Cairo",
-  windowDefaultWidth   := 800, 
-  windowDefaultHeight  := 600,
+  windowDefaultWidth   := (ceiling width), 
+  windowDefaultHeight  := (ceiling height),
   containerBorderWidth := 0 ]
 
 drawForm :: Form -> Double -> Double -> Render ()
 drawForm form w h = do
   fDraw $ moved (w / 2, h / 2) $ centered $ form
+
+showSourceAndProduct :: String -> Form -> Form
+showSourceAndProduct source result = groupBy toRight [ highlightedHaskell source, result ]
