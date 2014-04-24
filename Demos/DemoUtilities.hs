@@ -8,15 +8,12 @@ import Graphics.Declarative.Envelope
 import Graphics.Declarative.Combinators
 import Graphics.Declarative.Util.SyntaxText
 
-createTitleImage :: Form -> IO ()
-createTitleImage form = makeSvg form "titleImage.svg" 0.5
-
-makeSvg :: Form -> FilePath -> Double -> IO ()
-makeSvg form path scale = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (drawForm form w h))
+makeSvg :: Form -> FilePath -> IO ()
+makeSvg form path = withSVGSurface path (realToFrac w) (realToFrac h) (\surface -> renderWith surface (drawForm form w h))
   where
     (ws, hs) = envelopeSize $ fEnvelope form
-    w = ws * scale + 10
-    h = hs * scale + 10
+    w = ws + 10
+    h = hs + 10
 
 openGTK :: Form -> IO ()
 openGTK form = do
