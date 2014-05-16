@@ -12,6 +12,9 @@ data Behavior a = Behavior a
 step :: Automaton a b -> a -> (Automaton a b, b)
 step (Step f) input = f input
 
+stepEvent :: Automaton (Event a) b -> a -> (Automaton (Event a) b, b)
+stepEvent automaton x = step automaton (Event x)
+
 
 ----- HELPERS -----
 
@@ -20,8 +23,8 @@ onEvent f ev = case ev of
   Event x -> Event (f x)
   NoEvent -> NoEvent
 
-extractValue :: Behavior a -> a
-extractValue (Behavior x) = x
+behaviorValue :: Behavior a -> a
+behaviorValue (Behavior x) = x
 
 onBehavior :: (a -> b) -> Behavior a -> Behavior b
 onBehavior f (Behavior x) = Behavior (f x)
@@ -63,7 +66,7 @@ swap = liftA (\ (x,y) -> (y,x))
 
                                 
 keepWhen :: Behavior Bool -> Event a -> Event a
-keepWhen pred ev = if extractValue pred then ev else NoEvent
+keepWhen pred ev = if behaviorValue pred then ev else NoEvent
 
 dropWhen :: Behavior Bool -> Event a -> Event a
 dropWhen = keepWhen . onBehavior not
@@ -71,10 +74,10 @@ dropWhen = keepWhen . onBehavior not
 identity :: Automaton a a
 identity = liftA id
 
-foldEvents :: (a -> b -> b) -> b -> Automaton (Event a) (Behavior b)
+foldEvents :: (b -> a -> b) -> b -> Automaton (Event a) (Behavior b)
 foldEvents f init = Step <| \ input -> case input of
   NoEvent -> (foldEvents f init, Behavior init)
-  Event ev -> let newState = f ev init
+  Event ev -> let newState = f init ev
               in (foldEvents f newState, Behavior newState)
 
 accumEvents :: a -> Automaton (Event (a -> a)) (Behavior a)
@@ -104,7 +107,7 @@ filterJust = Step (\ input -> case input of
                                 Event maybeX -> (filterJust, maybe NoEvent Event maybeX))
 
 holdLast :: a -> Automaton (Event a) (Behavior a)
-holdLast init = foldEvents (\n _ -> n) init
+holdLast init = foldEvents (\_ n -> n) init
 
 splitMerge :: (a -> b -> c) -> Automaton g a -> Automaton g b -> Automaton g c
 splitMerge f a b = Step (\ input -> let (newA, outA) = step a input
