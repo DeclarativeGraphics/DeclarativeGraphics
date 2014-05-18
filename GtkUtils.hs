@@ -1,7 +1,8 @@
 module GtkUtils where
 
-import Data.IORef
+import Control.Applicative
 import Control.Monad
+import Data.IORef
 import Data.Maybe
 
 import qualified Graphics.UI.Gtk as G
@@ -16,9 +17,11 @@ import Graphics.Declarative.Form
 
 import Automaton
 
+import KeyboardInput
+
 
 data GtkEvent = Expose
-              | KeyPress G.KeyVal
+              | KeyPress KeyboardInput
               deriving (Show)
 
 
@@ -29,29 +32,30 @@ runGTK :: GtkFRP -> IO ()
 runGTK automaton = gtkBoilerplate $ \canvas -> do
   automatonRef <- newIORef automaton
 
-  let frpProcessEvent :: GtkEvent -> E.EventM any ()
-      frpProcessEvent frpEvent = liftIO $ do
+  let frpProcessEvent :: Maybe GtkEvent -> E.EventM any ()
+      frpProcessEvent (Just frpEvent) = liftIO $ do
         automaton <- readIORef automatonRef
         let (newAutomaton, formBehavior) = stepEvent automaton frpEvent
         writeIORef automatonRef newAutomaton
         putStrLn $ "Got event " ++ show frpEvent
         renderForm canvas (behaviorValue formBehavior)
+      frpProcessEvent Nothing = return ()
 
-      processEvent :: E.EventM i GtkEvent -> E.EventM i Bool
+      processEvent :: E.EventM i (Maybe GtkEvent) -> E.EventM i Bool
       processEvent f = f >>= frpProcessEvent >> E.eventSent
 
   canvas `on` G.exposeEvent   $ processEvent handleExpose
   canvas `on` G.keyPressEvent $ processEvent handleKeyPress
 
 
-handleExpose :: E.EventM E.EExpose GtkEvent
-handleExpose = return Expose
+handleExpose :: E.EventM E.EExpose (Maybe GtkEvent)
+handleExpose = return (Just Expose)
 
 
-handleKeyPress :: E.EventM E.EKey GtkEvent
+handleKeyPress :: E.EventM E.EKey (Maybe GtkEvent)
 handleKeyPress = do
   key <- E.eventKeyVal
-  return (KeyPress key)
+  return $ KeyPress <$> keyboardInputFromGdk key
 
 
 drawForm :: Form -> Double -> Double -> C.Render ()
@@ -60,7 +64,7 @@ drawForm form w h = do
 
 
 renderForm :: G.WidgetClass w => w -> Form -> IO ()
-renderForm canvas form = render canvas (drawForm form)
+renderForm canvas form = renderDoubleBuffered canvas (drawForm form)
 
 
 
@@ -99,3 +103,18 @@ render canvas renderF = do
   (w, h) <- G.widgetGetSize canvas
   drawWin <- G.widgetGetDrawWindow canvas
   G.renderWithDrawable drawWin (renderF (fromIntegral w) (fromIntegral h))
+
+
+renderDoubleBuffered canvas renderF = render canvas renderF'
+  where
+    renderF' w h = do
+      C.pushGroup
+      delete w h 
+      renderF w h
+      C.popGroupToSource
+      C.paint
+
+    delete w h = do
+      C.setSourceRGB 1 1 1
+      C.rectangle 0 0 w h
+      C.fill
