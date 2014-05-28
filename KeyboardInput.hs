@@ -21,4 +21,8 @@ keyboardInputFromGdk k = maybe parseSpecialKey parseLetter (G.keyToChar k)
       "Escape"    -> Just $ Special Escape
       "BackSpace" -> Just $ Special Backspace
       "Shift_L"   -> Just $ Special Shift
+      "Left"      -> Just $ Special ArrLeft
+      "Right"     -> Just $ Special ArrRight
+      "Down"      -> Just $ Special ArrDown
+      "Up"        -> Just $ Special ArrUp
       unknown     -> (trace ("Don't know how to interpret GDK key " ++ show unknown) Nothing)

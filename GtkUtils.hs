@@ -15,7 +15,7 @@ import Graphics.Rendering.Cairo (liftIO)
 
 import Graphics.Declarative.Form
 
-import Automaton
+import FRP
 
 import KeyboardInput
 
@@ -25,18 +25,18 @@ data GtkEvent = Expose
               deriving (Show)
 
 
-type GtkFRP = Automaton (Event GtkEvent) (Behavior Form)
+type GtkFRP = FRP (Event GtkEvent) (Behavior Form)
 
 
 runGTK :: GtkFRP -> IO ()
-runGTK automaton = gtkBoilerplate $ \canvas -> do
-  automatonRef <- newIORef automaton
+runGTK frp = gtkBoilerplate $ \canvas -> do
+  frpRef <- newIORef frp
 
   let frpProcessEvent :: Maybe GtkEvent -> E.EventM any ()
       frpProcessEvent (Just frpEvent) = liftIO $ do
-        automaton <- readIORef automatonRef
-        let (newAutomaton, formBehavior) = stepEvent automaton frpEvent
-        writeIORef automatonRef newAutomaton
+        frp <- readIORef frpRef
+        let (newfrp, formBehavior) = stepEvent frp frpEvent
+        writeIORef frpRef newfrp
         putStrLn $ "Got event " ++ show frpEvent
         renderForm canvas (behaviorValue formBehavior)
       frpProcessEvent Nothing = return ()
