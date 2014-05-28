@@ -36,6 +36,7 @@ lightBrown = fromRGB (233,185,110)
 brown = fromRGB (193,125,17)
 darkBrown = fromRGB (143,89,2)
 
+black, white :: Color
 black = (0,0,0)
 white = (1,1,1)
 
