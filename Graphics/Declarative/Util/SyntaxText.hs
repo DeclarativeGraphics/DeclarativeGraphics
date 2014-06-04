@@ -15,7 +15,7 @@ highlightedSource tstyle style language = (renderSource tstyle style) . (highlig
 renderSource :: TextStyle -> Style -> [SourceLine] -> Form
 renderSource tstyle style sourceLines = groupBy toBottom $ map (renderLine tstyle style) sourceLines
 
--- info: type SourceLine = [Token]
+-- info: type SourceLine = [Token] = [(TokenType, String)]
 renderLine :: TextStyle -> Style -> SourceLine -> Form
 renderLine tstyle style []     = text tstyle " "
 renderLine tstyle style tokens = groupBy toRight $ map (renderToken tstyle style) tokens

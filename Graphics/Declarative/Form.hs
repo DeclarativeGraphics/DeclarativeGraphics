@@ -181,7 +181,7 @@ withEnvelope (Form _ rend) envelope = Form envelope rend
 
 debugEnvelope :: Form -> Form
 debugEnvelope form = 
-  (outlined (solid (1, 0, 0)) $ circle 2)
+  (withEnvelope (outlined (solid (1, 0, 0)) $ circle 2) emptyEnvelope)
   `atop`
   (outlined (solid (1, 0, 0)) $ fromEnvelope $ fEnvelope form)
   `atop`

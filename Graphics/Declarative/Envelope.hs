@@ -7,6 +7,9 @@ data Envelope = Envelope {
   envToBottom :: Double
 } deriving (Show, Eq)
 
+emptyEnvelope :: Envelope
+emptyEnvelope = Envelope 0 0 0 0
+
 envelopeCenteredRect :: Double -> Double -> Envelope
 envelopeCenteredRect width height = Envelope (-width / 2) (-height / 2) (width / 2) (height / 2)
 

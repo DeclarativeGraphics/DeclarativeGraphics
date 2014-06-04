@@ -3,38 +3,36 @@
 
 name:                GraphicalProgramming
 version:             0.1.0.0
--- synopsis:            
--- description:         
--- license:             
+-- synopsis:
+-- description:
+-- license:
 license-file:        LICENSE
 author:              matheus23
 maintainer:          matheus.dev@googlemail.com
--- copyright:           
+-- copyright:
 category:            Graphics
 build-type:          Simple
--- extra-source-files:  
+-- extra-source-files:
 cabal-version:       >=1.10
 
 library
   exposed-modules:     Graphics.Declarative.Form, Graphics.Declarative.Envelope, Graphics.Declarative.Combinators,
                        Graphics.Declarative.Shape, Graphics.Declarative.Util.SyntaxText
   other-modules:       Graphics.Declarative.Internal.Primitive
-  build-depends:       base >=4.6 && <4.7,
-                       cairo, gtk, pango, highlighting-kate
+  build-depends:       base, cairo, gtk, pango, highlighting-kate
+  default-language:    Haskell2010
 
 executable DemoSourceCode
   main-is:             Demos/DemoSourceCode.hs
-  -- other-modules:       
-  -- other-extensions:    
-  build-depends:       base >=4.6 && <4.7,
-                       cairo, gtk, pango, highlighting-kate
-  -- hs-source-dirs:      
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base, cairo, gtk, pango, highlighting-kate
+  -- hs-source-dirs:
   default-language:    Haskell2010
 executable DemoShapes
   main-is:             Demos/DemoShapes.hs
-  -- other-modules:       
-  -- other-extensions:    
-  build-depends:       base >=4.6 && <4.7,
-                       cairo, gtk, pango, highlighting-kate
-  -- hs-source-dirs:      
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base, cairo, gtk, pango, highlighting-kate
+  -- hs-source-dirs:
   default-language:    Haskell2010
