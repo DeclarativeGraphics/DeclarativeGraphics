@@ -138,6 +138,7 @@ text style content = Form {
   (r, g, b) = textColor style
 
 -- Used for text drawing:
+{-# NOINLINE standardContext #-}
 standardContext :: PangoContext
 standardContext = unsafePerformIO $ cairoCreateContext Nothing
 
@@ -167,7 +168,7 @@ padded :: Double -> Form -> Form
 padded padding = paddedWith (padding, padding)
 
 originatedRel :: (Double, Double) -> Form -> Form
-originatedRel (relX, relY) form@(Form (Envelope l t r b) rend) = 
+originatedRel (relX, relY) form@(Form (Envelope l t r b) rend) =
   moved (relX * (l-r), relY * (t-b)) $ moved (-l, -t) form
 
 centered :: Form -> Form
@@ -180,7 +181,7 @@ withEnvelope :: Form -> Envelope -> Form
 withEnvelope (Form _ rend) envelope = Form envelope rend
 
 debugEnvelope :: Form -> Form
-debugEnvelope form = 
+debugEnvelope form =
   (withEnvelope (outlined (solid (1, 0, 0)) $ circle 2) emptyEnvelope)
   `atop`
   (outlined (solid (1, 0, 0)) $ fromEnvelope $ fEnvelope form)
