@@ -44,9 +44,7 @@ groupBy2 direction x y = groupBy direction [x,y]
 
 focusWrapper widget = loopFold False inner
   where
-    inner = proc t -> do
-      (event,focussed) <- identity -< t
-
+    inner = proc (event,focussed) -> do
       (form, widgetUnusedEvents) <- widget <<< merge keepWhen -< (focussed, event)
 
       bypassedEvents <- merge dropWhen -< (focussed, event)
