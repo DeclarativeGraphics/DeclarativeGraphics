@@ -4,7 +4,7 @@ module FRP.Base
   ,Behavior
   ,behaviorValue
   ,onBehavior
-  ,onBehavior2
+  ,mergeBehaviors
   ,stepEvent
   ,liftFRP
   ,mapEvents
@@ -19,6 +19,7 @@ module FRP.Base
   ,dropWhen
   ,sampleOn
   ,foldEvents
+  ,foldEvents'
   ,accumEvents
   ,filterEvents
   ,mapMaybeEvents
@@ -64,8 +65,8 @@ behaviorValue (Behavior x) = x
 onBehavior :: (a -> b) -> Behavior a -> Behavior b
 onBehavior f (Behavior x) = Behavior (f x)
 
-onBehavior2 :: (a -> b -> c) -> Behavior a -> Behavior b -> Behavior c
-onBehavior2 f (Behavior x) (Behavior y) = Behavior (f x y)
+mergeBehaviors :: (a -> b -> c) -> Behavior a -> Behavior b -> Behavior c
+mergeBehaviors f (Behavior x) (Behavior y) = Behavior (f x y)
 
 
 
@@ -109,29 +110,29 @@ sampleOn :: Behavior a -> Event b -> Event a
 sampleOn behavior = onEvent (\_ -> behaviorValue behavior)
 
 foldEvents :: (b -> a -> b) -> b -> FRP (Event a) (Behavior b)
-foldEvents f init = Step $ withEvent (\ev -> let newState = f init ev
-                                                 in (foldEvents f newState, Behavior newState))
-                           (foldEvents f init, Behavior init)
+foldEvents f init = Step $ withEvent foldSingleEvent keepOldValue
+  where
+    keepOldValue = (foldEvents f init, Behavior init)
+    foldSingleEvent x = let newState = f init x in (foldEvents f newState, Behavior newState)
+
+-- TODO: terrible name
+foldEvents' :: (a -> b) -> b -> FRP (Event a) (Behavior b)
+foldEvents' f empty = liftFRP (\input -> withEvent (Behavior . f) (Behavior empty) input)
 
 accumEvents :: a -> FRP (Event (a -> a)) (Behavior a)
-accumEvents init = Step $ withEvent (\f -> let newState = f init
-                                               in (accumEvents newState, Behavior newState))
-                          (accumEvents init, Behavior init)
+accumEvents init = Step $ withEvent accumSingleEvent keepOldValue
+  where
+    keepOldValue = (accumEvents init, Behavior init)
+    accumSingleEvent f = let newState = f init in (accumEvents newState, Behavior newState)
 
 filterEvents :: (a -> Bool) -> FRP (Event a) (Event a)
-filterEvents pred = Step $ \input -> (filterEvents pred,
-                                      case input of
-                                        NoEvent -> NoEvent
-                                        Event x -> if pred x then Event x
-                                                   else NoEvent)
+filterEvents pred = liftFRP filterPred
+  where
+    filterPred (Event x) | pred x = Event x
+    filterPred _ = NoEvent
 
 mapMaybeEvents :: (a -> Maybe b) -> FRP (Event a) (Event b)
-mapMaybeEvents f = Step $ withEvent
-  (\a -> (maybe (mapMaybeEvents f, NoEvent)
-                (\b -> (mapMaybeEvents f, Event b))
-                (f a)))
-  (mapMaybeEvents f, NoEvent)
-
+mapMaybeEvents f = liftFRP $ withEvent (maybe NoEvent Event . f) NoEvent
 
 
 ----- NOT-SO-PRIMITIVES -----

@@ -40,8 +40,6 @@ z = proc event -> do
                                             centered <| text defaultTextStyle r]
 
 
-groupBy2 direction x y = groupBy direction [x,y]
-
 focusWrapper widget = loopFold False inner
   where
     inner = proc (event,focussed) -> do
