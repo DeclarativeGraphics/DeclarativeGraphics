@@ -42,10 +42,10 @@ z = proc event -> do
 
 focusWrapper widget = loopFold False inner
   where
-    inner = proc (event,focussed) -> do
-      (form, widgetUnusedEvents) <- widget <<< merge keepWhen -< (focussed, event)
+    inner = proc (event,focused) -> do
+      (form, widgetUnusedEvents) <- widget <<< merge keepWhen -< (focused, event)
 
-      bypassedEvents <- merge dropWhen -< (focussed, event)
+      bypassedEvents <- merge dropWhen -< (focused, event)
 
       (loseFocusEvents, wrapperUnused1)
         <- splitEvents <<< mapEvents (\gtkEvent -> case gtkEvent of KeyPress (Special Escape) -> Left False
