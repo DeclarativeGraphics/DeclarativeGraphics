@@ -60,19 +60,17 @@ focusWrapper widget = loopFold False inner
       unusedEvents <- merge mergeEvents -< (wrapperUnused1, wrapperUnused2)
       focusEvents <- merge mergeEvents -< (loseFocusEvents, gainFocusEvents)
 
-      lastEvent <- holdLast Nothing <<< mapEvents Just -< event
-      lastEventText <- mapBehavior (maybe emptyForm (text defaultTextStyle . show)) -< lastEvent
-
-      widgetUnused <- holdLast Nothing <<< mapEvents Just -< unusedEvents
-      widgetUnusedText <- mapBehavior (maybe emptyForm (text defaultTextStyle . show)) -< widgetUnused
-
-      focusText <- mapBehavior (text defaultTextStyle . show) -< focussed
-
-      renderedWidget <- merge (onBehavior2 (\ form focussed -> let transf = if focussed then debugEnvelope else id in transf form)) -< (form, focussed)
-      img <- merge (onBehavior2 $ groupBy2 toRight) -< (renderedWidget, lastEventText)
-      img' <- merge (onBehavior2 $ groupBy2 toRight) -< (img, focusText)
-      img'' <- merge (onBehavior2 $ groupBy2 toRight) -< (img', widgetUnusedText)
-      returnA -< (img'', focusEvents)
+      returnA -< ((form, unusedEvents), focusEvents)
 
 
-main = runGTK <| focusWrapper z
+debugFocusWrapper :: FRP (Event GtkEvent) (Behavior Form, Event GtkEvent) -> GtkFRP
+debugFocusWrapper widget = debug <<< focusWrapper widget
+  where
+    debug = proc (form, unusedEvents) -> do
+      unusedEventsText <- foldEvents' (text defaultTextStyle . show) (text defaultTextStyle "-") -< unusedEvents
+      merge (mergeBehaviors render) -< (form, unusedEventsText)
+
+    render form unusedEventsText = groupBy toBottom [form, unusedEventsText]
+
+
+main = runGTK <| debugFocusWrapper z
