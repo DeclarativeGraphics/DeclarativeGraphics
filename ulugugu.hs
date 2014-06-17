@@ -40,27 +40,26 @@ z = proc event -> do
                                             centered <| text defaultTextStyle r]
 
 
-focusWrapper widget = loopFold False inner
-  where
-    inner = proc (event,focused) -> do
-      (form, widgetUnusedEvents) <- widget <<< merge keepWhen -< (focused, event)
+focusWrapper widget = loopFold False $
+  proc (event, focused) -> do
+    (widgetEvents, bypassedEvents) <- partitionEvents -< (focused, event)
 
-      bypassedEvents <- merge dropWhen -< (focused, event)
+    (form, widgetUnusedEvents) <- widget -< widgetEvents
 
-      (loseFocusEvents, wrapperUnused1)
-        <- splitEvents <<< mapEvents (\gtkEvent -> case gtkEvent of KeyPress (Special Escape) -> Left False
-                                                                    e -> Right e)
-        -< widgetUnusedEvents
+    (loseFocusEvents, wrapperUnused1)
+      <- splitEvents <<< mapEvents (\gtkEvent -> case gtkEvent of KeyPress (Special Escape) -> Left False
+                                                                  e -> Right e)
+      -< widgetUnusedEvents
 
-      (gainFocusEvents, wrapperUnused2)
-        <- splitEvents <<< mapEvents (\gtkEvent -> case gtkEvent of KeyPress (Letter 'i') -> Left True
-                                                                    e -> Right e)
-        -< bypassedEvents
+    (gainFocusEvents, wrapperUnused2)
+      <- splitEvents <<< mapEvents (\gtkEvent -> case gtkEvent of KeyPress (Letter 'i') -> Left True
+                                                                  e -> Right e)
+      -< bypassedEvents
 
-      unusedEvents <- merge mergeEvents -< (wrapperUnused1, wrapperUnused2)
-      focusEvents <- merge mergeEvents -< (loseFocusEvents, gainFocusEvents)
+    unusedEvents <- merge mergeEvents -< (wrapperUnused1, wrapperUnused2)
+    focusEvents <- merge mergeEvents -< (loseFocusEvents, gainFocusEvents)
 
-      returnA -< ((form, unusedEvents), focusEvents)
+    returnA -< ((form, unusedEvents), focusEvents)
 
 
 debugFocusWrapper :: FRP (Event GtkEvent) (Behavior Form, Event GtkEvent) -> GtkFRP
