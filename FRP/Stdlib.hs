@@ -35,3 +35,8 @@ filterJusts = mapMaybeEvents id
 --   This is a variant of 'foldEvents' that always ignores the old behavior value.
 holdLast :: a -> FRP (Event a) (Behavior a)
 holdLast init = foldEvents (\_ n -> n) init
+
+
+-- | Transform a 'Behavior (a,b)' into a '(Behavior a, Behavior b)'.
+unzipBehavior :: FRP (Behavior (a,b)) (Behavior a, Behavior b)
+unzipBehavior = (&&&) (mapBehavior fst) (mapBehavior snd)

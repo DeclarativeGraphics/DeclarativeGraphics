@@ -2,7 +2,6 @@
 module Main where
 
 import Control.Arrow
-import Data.Maybe
 
 import Graphics.Declarative.Envelope
 import Graphics.Declarative.Shape
@@ -18,26 +17,42 @@ import KeyboardInput
 
 import Utils
 
-z = proc event -> do
-  (textinputactions, unusedevents) <- splitEvents <<< mapEvents interpretInput -< event
-  textinput <- accumEvents emptyTextInput -< textinputactions
-  textinputRendered <- mapBehavior renderTextInput -< textinput
 
-  returnA -< (textinputRendered, unusedevents)
- where
-   interpretInput (KeyPress key) = case key of
-     Letter c -> Left <| textInputInsert c
-     Special ArrLeft    -> Left <| try textInputMoveLeft
-     Special ArrRight   -> Left <| try textInputMoveRight
-     Special Backspace  -> Left <| try textInputDelete
-     _ -> Right (KeyPress key)
-   interpretInput e = Right e
+widget :: (state -> GtkEvent -> (Bool,state))
+       -> (state -> Form)
+       -> state
+       -> FRP (Event GtkEvent) (Behavior Form, Event GtkEvent)
+widget stepWidget renderWidget initWidget =
+  eventPropagationWrapper (foldEvents (stepWidget . snd) (True, initWidget))
+  >>> first (mapBehavior renderWidget)
 
-   try f x = fromMaybe x (f x)
 
-   renderTextInput (l,r) = groupBy toRight [centered <| text defaultTextStyle (reverse l),
-                                            rectangle 1 20 |> filled black |> modifiedEnvelope (\ (Envelope l t r b) -> Envelope 0 t 0 b),
-                                            centered <| text defaultTextStyle r]
+eventPropagationWrapper :: FRP (Event a) (Behavior (Bool,b))
+                        -> FRP (Event a) (Behavior b, Event a)
+eventPropagationWrapper eventHandler = proc event -> do
+  innerOutput <- eventHandler -< event
+  (continuePropagation,output) <- unzipBehavior -< innerOutput
+  propagatedEvents <- merge keepWhen -< (continuePropagation, event)
+  returnA -< (output, propagatedEvents)
+
+
+textWidget :: TextInput -> FRP (Event GtkEvent) (Behavior Form, Event GtkEvent)
+textWidget = widget interpretInput renderTextInput
+  where
+    interpretInput :: TextInput -> GtkEvent -> (Bool,TextInput)
+    interpretInput state (KeyPress key) = case key of
+      Letter c           -> (False, textInputInsert c state)
+      Special ArrLeft    -> (False, maybeApply textInputMoveLeft state)
+      Special ArrRight   -> (False, maybeApply textInputMoveRight state)
+      Special Backspace  -> (False, maybeApply textInputDelete state)
+      _                  -> (True, state)
+    interpretInput state _ = (True, state)
+
+    renderTextInput :: TextInput -> Form
+    renderTextInput (l,r) = groupBy toRight [centered <| text defaultTextStyle (reverse l),
+                                             rectangle 1 20 |> filled black |> modifiedEnvelope (\ (Envelope l t r b) -> Envelope 0 t 0 b),
+                                             centered <| text defaultTextStyle r]
+
 
 
 focusWrapper widget = loopFold False $
@@ -72,4 +87,4 @@ debugFocusWrapper widget = debug <<< focusWrapper widget
     render form unusedEventsText = groupBy toBottom [form, unusedEventsText]
 
 
-main = runGTK <| debugFocusWrapper z
+main = runGTK $ debugFocusWrapper $ textWidget emptyTextInput
