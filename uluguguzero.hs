@@ -16,8 +16,9 @@ import Utils
 import TextInput
 import KeyboardInput
 
-changingRect = foldp (const tail) (cycle allColorsRandomOrder) |> after (drawRect . head)
+changingRect = foldp (const tail) (cycle colors) |> after (drawRect . head)
   where
+    colors = [red, blue, green, yellow, brown, purple, grey]
     drawRect color = rectangle 200 200 |> filled color
 
 holdLast = foldp (const . Just) Nothing
