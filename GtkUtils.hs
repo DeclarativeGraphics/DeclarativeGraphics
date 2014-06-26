@@ -27,9 +27,11 @@ data GtkEvent = Expose
 
 type GtkFRP = FRP (Event GtkEvent) (Behavior Form)
 
-
 runGTK :: GtkFRP -> IO ()
-runGTK frp = gtkBoilerplate $ \canvas -> do
+runGTK = runGTKat (0.5, 0.5)
+
+runGTKat :: (Double, Double) -> GtkFRP -> IO ()
+runGTKat origin frp = gtkBoilerplate $ \canvas -> do
   frpRef <- newIORef frp
 
   let frpProcessEvent :: Maybe GtkEvent -> E.EventM any ()
@@ -38,7 +40,7 @@ runGTK frp = gtkBoilerplate $ \canvas -> do
         let (newfrp, formBehavior) = stepEvent frp frpEvent
         writeIORef frpRef newfrp
         putStrLn $ "Got event " ++ show frpEvent
-        renderForm canvas (behaviorValue formBehavior)
+        renderForm canvas origin (behaviorValue formBehavior)
       frpProcessEvent Nothing = return ()
 
       processEvent :: E.EventM i (Maybe GtkEvent) -> E.EventM i Bool
@@ -58,13 +60,13 @@ handleKeyPress = do
   return $ KeyPress <$> keyboardInputFromGdk key
 
 
-drawForm :: Form -> Double -> Double -> C.Render ()
-drawForm form w h = do
-  fDraw $ moved (w / 2, h / 2) $ centered $ form
+drawForm :: (Double, Double) -> Form -> Double -> Double -> C.Render ()
+drawForm (originx,originy) form w h = do
+  fDraw $ moved (originx * w, originy * h) $ form
 
 
-renderForm :: G.WidgetClass w => w -> Form -> IO ()
-renderForm canvas form = renderDoubleBuffered canvas (drawForm form)
+renderForm :: G.WidgetClass w => w -> (Double, Double) -> Form -> IO ()
+renderForm canvas origin form = renderDoubleBuffered canvas (drawForm origin form)
 
 
 
