@@ -16,12 +16,12 @@ import Utils
 import TextInput
 import KeyboardInput
 
-changingRect = foldp (const tail) (cycle colors) |> after (drawRect . head)
+changingRect = const tail >>^ accum (cycle colors) ^>> (drawRect . head)
   where
     colors = [red, blue, green, yellow, brown, purple, grey]
     drawRect color = rectangle 200 200 |> filled color
 
-holdLast = foldp (const . Just) Nothing
+holdLast = (const . Just) >>^ accum Nothing
 
 lastEvent :: (Show event) => State event Form
 lastEvent = holdLast |> after (centered . maybe emptyForm renderShow)
@@ -29,7 +29,7 @@ lastEvent = holdLast |> after (centered . maybe emptyForm renderShow)
 renderShow :: (Show s) => s -> Form
 renderShow = text defaultTextStyle . show
 
-textWidget = interpretTextInput >>^ (accum emptyTextInput) ^>> renderTextInput
+textWidget = interpretTextInput >>^ accum emptyTextInput ^>> renderTextInput
   where
     interpretTextInput :: GtkEvent -> (TextInput -> TextInput)
     interpretTextInput (KeyPress key) = case key of
@@ -47,4 +47,4 @@ renderTextInput (l,r) = centered <| groupBy toRight [centered leftText, cursor, 
     rightText = text defaultTextStyle r
     cursor = rectangle 1 20 |> filled black |> flip withEnvelope emptyEnvelope
 
-main = runGtkZero (textWidget |> after debugEnvelope) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
+main = runGtkZero (textWidget ^>> debugEnvelope) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
