@@ -24,23 +24,26 @@ changingRect = foldp (const tail) (cycle colors) |> after (drawRect . head)
 holdLast = foldp (const . Just) Nothing
 
 lastEvent :: (Show event) => State event Form
-lastEvent = holdLast |> after (originatedRel (0.5,0.5) . maybe emptyForm (text defaultTextStyle . show))
+lastEvent = holdLast |> after (centered . maybe emptyForm renderShow)
 
-textWidget = foldp (flip interpretInput) emptyTextInput |> after renderTextInput
+renderShow :: (Show s) => s -> Form
+renderShow = text defaultTextStyle . show
+
+textWidget = before interpretInput (accum emptyTextInput) |> after renderTextInput
   where
-    interpretInput :: TextInput -> GtkEvent -> TextInput
-    interpretInput state (KeyPress key) = snd <| case key of
-      Letter c           -> (False, textInputInsert c state)
-      Special ArrLeft    -> (False, maybeApply textInputMoveLeft state)
-      Special ArrRight   -> (False, maybeApply textInputMoveRight state)
-      Special Backspace  -> (False, maybeApply textInputDelete state)
-      _                  -> (True, state)
-    interpretInput state _ = snd (True, state)
+    interpretInput :: GtkEvent -> (TextInput -> TextInput)
+    interpretInput (KeyPress key) = case key of
+      Letter c           -> textInputInsert c
+      Special ArrLeft    -> maybeApply textInputMoveLeft
+      Special ArrRight   -> maybeApply textInputMoveRight
+      Special Backspace  -> maybeApply textInputDelete
+      _                  -> id
+    interpretInput _ = id
 
     renderTextInput :: TextInput -> Form
     renderTextInput (l,r) = groupBy toRight [centered <| text defaultTextStyle (reverse l),
                                              rectangle 1 20 |> filled black |> modifiedEnvelope (\ (Envelope l t r b) -> Envelope 0 t 0 b),
                                              centered <| text defaultTextStyle r]
-                              -- |> originatedRel (0.5,0.5)
+                              |> centered
 
-main = runGtkZero (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
+main = runGtkZero (after debugEnvelope textWidget) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
