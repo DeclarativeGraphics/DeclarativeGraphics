@@ -29,21 +29,22 @@ lastEvent = holdLast |> after (centered . maybe emptyForm renderShow)
 renderShow :: (Show s) => s -> Form
 renderShow = text defaultTextStyle . show
 
-textWidget = before interpretInput (accum emptyTextInput) |> after renderTextInput
+textWidget = before interpretTextInput (accum emptyTextInput) |> after renderTextInput
   where
-    interpretInput :: GtkEvent -> (TextInput -> TextInput)
-    interpretInput (KeyPress key) = case key of
+    interpretTextInput :: GtkEvent -> (TextInput -> TextInput)
+    interpretTextInput (KeyPress key) = case key of
       Letter c           -> textInputInsert c
       Special ArrLeft    -> maybeApply textInputMoveLeft
       Special ArrRight   -> maybeApply textInputMoveRight
       Special Backspace  -> maybeApply textInputDelete
       _                  -> id
-    interpretInput _ = id
+    interpretTextInput _ = id
 
-    renderTextInput :: TextInput -> Form
-    renderTextInput (l,r) = groupBy toRight [centered <| text defaultTextStyle (reverse l),
-                                             rectangle 1 20 |> filled black |> modifiedEnvelope (\ (Envelope l t r b) -> Envelope 0 t 0 b),
-                                             centered <| text defaultTextStyle r]
-                              |> centered
+renderTextInput :: TextInput -> Form
+renderTextInput (l,r) = centered <| groupBy toRight [centered leftText, cursor, centered rightText]
+  where
+    leftText  = text defaultTextStyle (reverse l)
+    rightText = text defaultTextStyle r
+    cursor = rectangle 1 20 |> filled black |> withEnvelope empty
 
-main = runGtkZero (after debugEnvelope textWidget) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
+main = runGtkZero (textWidget |> after debugEnvelope) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
