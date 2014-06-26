@@ -26,21 +26,21 @@ data TreeFocus a = TreeFocus (Maybe (TreeFocus a)) [Tree a] (Tree a) [Tree a]
 
 zipTree tree = TreeFocus Nothing [] tree []
 
-focussedTree (TreeFocus _ _ focus _) = focus
+focusedTree (TreeFocus _ _ focus _) = focus
 
 
 ------ movement -----
 
 goDown :: TreeFocus a -> Maybe (TreeFocus a)
-goDown zipper = case focussedTree zipper of
+goDown zipper = case focusedTree zipper of
   Node _ [] -> Nothing
   Node _ (firstChild : otherChildren) -> Just (TreeFocus (Just zipper) [] firstChild otherChildren)
 
 goUp :: TreeFocus a -> Maybe (TreeFocus a)
 goUp actZipper = case actZipper of
-  TreeFocus maybePrevZipper leftNeighbors focussedTree rightNeighbors
+  TreeFocus maybePrevZipper leftNeighbors focusedTree rightNeighbors
     -> let updateChildren (Node value _)
-             = Node value (reverse leftNeighbors ++ [focussedTree] ++ rightNeighbors)
+             = Node value (reverse leftNeighbors ++ [focusedTree] ++ rightNeighbors)
        in modifyFocus updateChildren <$> maybePrevZipper
 
 goRight :: TreeFocus a -> Maybe (TreeFocus a)
@@ -63,7 +63,7 @@ modifyFocus f (TreeFocus parent leftNeighbors focus rightNeighbors)
 
 setFocus x = modifyFocus (\_ -> x)
 
-deleteFocussed (TreeFocus maybeParent leftNeighbors focus rightNeighbors)
+deleteFocused (TreeFocus maybeParent leftNeighbors focus rightNeighbors)
   = case leftNeighbors of
       (newFocus : leftRestNeighbors)
          -> Just (TreeFocus maybeParent leftRestNeighbors newFocus rightNeighbors)
@@ -97,8 +97,8 @@ buildUp :: (sub -> a) -> (a -> [a] -> a) -> [a] -> Maybe (TreeFocus sub) -> [a]
 buildUp f combine subs maybeFocus = case maybeFocus of
   Nothing -> subs
   Just (TreeFocus maybePrevFocus leftNeighbors (Node value _) rightNeighbors)
-    -> let childrenResults = foldNeighbors f combine leftNeighbors focussedResult rightNeighbors
-           focussedResult = combine (f value) subs
+    -> let childrenResults = foldNeighbors f combine leftNeighbors focusedResult rightNeighbors
+           focusedResult = combine (f value) subs
        in maybePrevFocus |> buildUp f combine childrenResults
 
 foldZipper :: (Tree sub -> a) -> (sub -> a) -> (a -> [a] -> a) -> TreeFocus sub -> [a]

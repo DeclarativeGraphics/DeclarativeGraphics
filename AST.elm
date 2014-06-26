@@ -19,17 +19,17 @@ renderAtom renderString atom = case atom of
   Num i    -> renderString (show i)
   Var name -> renderString name
 
-renderFocussedAtom color = renderAtom (drawNode { fatLine | color <- color } . btext)
+renderFocusedAtom color = renderAtom (drawNode { fatLine | color <- color } . btext)
 renderStandardAtom = renderAtom (drawNode defaultLine . btext)
 
-renderFocussedTree renderFocus (Node focussed children)
-  = renderFocus focussed `connectChildren` map renderStandardTree children
+renderFocusedTree renderFocus (Node focused children)
+  = renderFocus focused `connectChildren` map renderStandardTree children
 renderStandardTree = foldTree renderStandardAtom connectChildren
 
 
 
 renderExprInFocus : (Atom -> Bounded Form) -> TreeFocus Atom -> Bounded Form
-renderExprInFocus renderFocus focus = head <| foldZipper (renderFocussedTree renderFocus)
+renderExprInFocus renderFocus focus = head <| foldZipper (renderFocusedTree renderFocus)
                                                          renderStandardAtom
                                                          connectChildren
                                                          focus

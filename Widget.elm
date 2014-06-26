@@ -28,8 +28,8 @@ data Widget1 = Widget1 (Input -> Widget1) (Bounded Form)
 normalModeWidget focus =
   let onTreeFocus f = normalModeWidget (f focus)
       changeToInsertMode () = case focus of
-        TreeFocus _ _ (Node (Var focussedAtom) _) _
-          -> insertModeWidget (toTextInput focussedAtom) focus
+        TreeFocus _ _ (Node (Var focusedAtom) _) _
+          -> insertModeWidget (toTextInput focusedAtom) focus
 
       interpretNormalModeKeyboardInput : Input -> Widget1
       interpretNormalModeKeyboardInput k = case k of
@@ -43,14 +43,14 @@ normalModeWidget focus =
         Special ArrRight -> onTreeFocus <| foldMaybe goRight
 
         Letter 'a' -> onTreeFocus <| modifyFocus (addChild (var "0"))
-        Letter 'x' -> onTreeFocus <| foldMaybe deleteFocussed
+        Letter 'x' -> onTreeFocus <| foldMaybe deleteFocused
         Letter 'H' -> onTreeFocus <| foldMaybe moveLeft
         Letter 'L' -> onTreeFocus <| foldMaybe moveRight
 
         Letter 'i' -> changeToInsertMode ()
         _          -> normalModeWidget focus
 
-  in Widget1 interpretNormalModeKeyboardInput <| renderExprInFocus (renderFocussedAtom red) focus
+  in Widget1 interpretNormalModeKeyboardInput <| renderExprInFocus (renderFocusedAtom red) focus
 
 
 insertModeWidget content focus =
