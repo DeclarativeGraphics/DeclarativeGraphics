@@ -12,6 +12,11 @@ foldp f init = State sf init
   where
     sf event = foldp f (f event init)
 
+accum :: state -> State (state -> state) state
+accum state = State sf state
+  where
+    sf changeevent = accum (changeevent state)
+
 step :: event -> State event state -> State event state
 step event (State sf s) = sf event
 
