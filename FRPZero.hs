@@ -27,12 +27,16 @@ before f (State sf s) = State (newsf f sf) s
     newsf f sf event = let (State sf' s') = sf (f event)
                        in State (newsf f sf') s'
 
+f >>^ state = f `before` state
+
 after :: (state -> state') -> State event state -> State event state'
 after f (State sf s) = State (newsf f sf) (f s)
   where
     newsf :: (state -> state') -> (event -> State event state) -> event -> State event state'
     newsf f sf event = let (State sf' s') = sf event
                        in State (newsf f sf') (f s')
+
+state ^>> f = f `after` state
 
 
 merge :: (stateleft -> stateright -> state) -> State e stateleft -> State e stateright -> State e state

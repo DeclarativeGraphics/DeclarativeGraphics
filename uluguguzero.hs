@@ -29,7 +29,7 @@ lastEvent = holdLast |> after (centered . maybe emptyForm renderShow)
 renderShow :: (Show s) => s -> Form
 renderShow = text defaultTextStyle . show
 
-textWidget = before interpretTextInput (accum emptyTextInput) |> after renderTextInput
+textWidget = interpretTextInput >>^ (accum emptyTextInput) ^>> renderTextInput
   where
     interpretTextInput :: GtkEvent -> (TextInput -> TextInput)
     interpretTextInput (KeyPress key) = case key of
@@ -45,6 +45,6 @@ renderTextInput (l,r) = centered <| groupBy toRight [centered leftText, cursor, 
   where
     leftText  = text defaultTextStyle (reverse l)
     rightText = text defaultTextStyle r
-    cursor = rectangle 1 20 |> filled black |> withEnvelope empty
+    cursor = rectangle 1 20 |> filled black |> flip withEnvelope emptyEnvelope
 
 main = runGtkZero (textWidget |> after debugEnvelope) -- (merge atop (after debugEnvelope textWidget) (after debugEnvelope changingRect))
