@@ -51,3 +51,68 @@ darkGray = fromRGB (186,189,182)
 lightCharcoal = fromRGB (136,138,133)
 charcoal = fromRGB (85,87,83)
 darkCharcoal = fromRGB (46,52,54)
+
+
+allColors =
+  [lightRed
+  ,red
+  ,darkRed
+  ,lightOrange
+  ,orange
+  ,darkOrange
+  ,lightYellow
+  ,yellow
+  ,darkYellow
+  ,lightGreen
+  ,green
+  ,darkGreen
+  ,lightBlue
+  ,blue
+  ,darkBlue
+  ,lightPurple
+  ,purple
+  ,darkPurple
+  ,lightBrown
+  ,brown
+  ,darkBrown
+  ,black
+  ,white
+  ,lightGrey
+  ,grey
+  ,darkGrey
+  ,lightGray
+  ,gray
+  ,darkGray
+  ,lightCharcoal
+  ,charcoal
+  ,darkCharcoal
+  ]
+
+
+allColorsRandomOrder =
+  [charcoal
+  ,red
+  ,brown
+  ,darkYellow
+  ,darkGrey
+  ,darkGreen
+  ,lightPurple
+  ,green
+  ,lightGreen
+  ,lightRed
+  ,purple
+  ,lightBrown
+  ,lightOrange
+  ,gray
+  ,darkOrange
+  ,blue
+  ,darkPurple
+  ,darkBrown
+  ,darkBlue
+  ,yellow
+  ,darkGray
+  ,orange
+  ,grey
+  ,darkRed
+  ,darkCharcoal
+  ]
