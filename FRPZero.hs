@@ -39,6 +39,13 @@ after f (State sf s) = State (newsf f sf) (f s)
 state ^>> f = f `after` state
 
 
+maybeFilter :: State event state -> State (Maybe event) state
+maybeFilter (State sf s) = State sf' s
+  where
+    sf' (Just event) = maybeFilter (sf event)
+    sf' Nothing      = maybeFilter (State sf s)
+
+
 merge :: (stateleft -> stateright -> state) -> State e stateleft -> State e stateright -> State e state
 merge f (State sfl sl) (State sfr sr) = State (newsf f sfl sfr) (f sl sr)
   where
