@@ -122,5 +122,85 @@ vimModeInputWidget = mergeF (.) interpretModeInput (insertModeAction . interpret
     inMode desiredMode f (mode, textinput) = maybeF (mode, textinput)
       where maybeF = if desiredMode == mode then f else id
 
+modeWidget :: (GtkEvent -> (state -> state)) -> state -> (state -> Form) -> State GtkEvent Form
+modeWidget interpretInput init render
+  = mergeF (.) interpretModeInput (insertModeAction . interpretInput)
+      >>^ accum (False, init)
+      ^>> renderWidget
+  where
+    renderWidget (insertMode, state) = showMode (render state)
+      where showMode = if insertMode then id else debugEnvelope
 
-main = runGtkZero vimModeInputWidget
+    interpretModeInput :: GtkEvent -> ((Bool, state) -> (Bool, state))
+    interpretModeInput (KeyPress key) = case key of
+      Letter 'i'     -> onlyInMode False $ setInsertMode True
+      Special Escape -> onlyInMode True  $ setInsertMode False
+      _              -> id
+    interpretModeInput _ = id
+
+    setInsertMode :: Bool -> (Bool, state) -> (Bool, state)
+    setInsertMode mode (_, state) = (mode, state)
+
+    insertModeAction :: (state -> state) -> ((Bool, state) -> (Bool, state))
+    insertModeAction = onlyInMode True . onState
+    
+    onState :: (state -> state) -> ((Bool, state) -> (Bool, state))
+    onState f (mode, state) = (mode, f state)
+
+    onlyInMode :: Bool -> ((Bool, state) -> (Bool, state)) -> ((Bool, state) -> (Bool, state))
+    onlyInMode desiredMode f (mode, state) = maybeF (mode, state)
+      where maybeF = if desiredMode == mode then f else id
+
+onTuple f (x,y) = (f x, f y)
+
+onFst, onSnd :: (a -> a) -> (a, a) -> (a, a)
+onFst f (x,y) = (f x, y)
+onSnd f (x,y) = (x, f y)
+
+besides2 x y = centered $ groupBy toRight [x, y]
+
+onTuple2 f = mergeF (,) (f . fst) (f . snd)
+
+type OnTupleSideFunction a = (a -> a) -> (a,a) -> (a,a)
+
+type Zustand = (Bool, OnTupleSideFunction Form, OnTupleSideFunction TextInput, (TextInput, TextInput))
+
+multiModeWidget
+  = mergeF ($) interpretModeInput (onFocused . interpretTextInput)
+      >>^ accum widgetInit ^>> renderWidget
+  where
+    init = toTextInput "Haskell stinkt"
+    widgetInit :: Zustand
+    widgetInit = (False, onFst, onFst, (init, init))
+
+    renderWidget :: Zustand -> Form
+    renderWidget (insertMode, f0, f1, widgets)
+      = showMode $ uncurry besides2 $ f0 debugEnvelope $ onTuple2 renderTextInput widgets
+      where
+        showMode = if insertMode then debugEnvelope else id
+
+
+    interpretModeInput :: GtkEvent -> (Zustand -> Zustand) -> Zustand -> Zustand
+    interpretModeInput (KeyPress key) = case key of
+      Letter 'i'     -> onlyInMode False (setMode True)
+      Special Escape -> onlyInMode True  (setMode False)
+      Letter 'h'     -> onlyInMode False (setFocus onFst onFst)
+      Letter 'l'     -> onlyInMode False (setFocus onSnd onSnd)
+      _              -> onlyInMode False id
+    interpretModeInput _ = onlyInMode False id
+
+    setMode :: Bool -> (Zustand -> Zustand)
+    setMode mode (_, f0, f1, widgets) = (mode, f0, f1, widgets)
+
+    onlyInMode :: Bool -> (Zustand -> Zustand) -> (Zustand -> Zustand) -> (Zustand -> Zustand)
+    onlyInMode desiredMode f g (mode, f0, f1, widgets)
+      = (if desiredMode == mode then f else g) (mode, f0, f1, widgets)
+
+    setFocus :: OnTupleSideFunction Form -> OnTupleSideFunction TextInput -> (Zustand -> Zustand)
+    setFocus f0 f1 (mode, _, _, widgets) = (mode, f0, f1, widgets)
+
+    onFocused :: (TextInput -> TextInput) -> (Zustand -> Zustand)
+    onFocused f (mode, f0, f1, states) = (mode, f0, f1, f1 f states)
+
+
+main = runGtkZero multiModeWidget

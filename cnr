@@ -1,0 +1,4 @@
+#!/bin/sh
+GHC="ghc -odir=build -hidir=build"
+
+$GHC "$1.hs" && exec ./$1
