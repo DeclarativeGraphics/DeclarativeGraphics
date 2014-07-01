@@ -11,6 +11,8 @@ import Graphics.Declarative.Shape
 import Graphics.Declarative.Form
 import Graphics.Declarative.Combinators
 
+import Control.Monad (liftM)
+
 import Colors
 import Utils
 import TextInput
@@ -203,4 +205,36 @@ multiModeWidget
     onFocused f (mode, f0, f1, states) = (mode, f0, f1, f1 f states)
 
 
-main = runGtkZero multiModeWidget
+interpretTextInput' :: GtkEvent -> TextInput -> Maybe TextInput
+interpretTextInput' (KeyPress key) textinput = case key of
+  Letter c           -> Just $ textInputInsert c textinput
+  Special ArrLeft    -> textInputMoveLeft textinput
+  Special ArrRight   -> textInputMoveRight textinput
+  Special Backspace  -> textInputDelete textinput
+  _                  -> Nothing
+interpretTextInput' _ textinput = Nothing
+
+orElse :: Maybe a -> a -> a
+orElse (Just x) _   = x
+orElse Nothing  def = def
+
+dropWhen :: State event Bool -> State event state -> State event state
+dropWhen filter inner = State sf (state inner)
+  where
+    sf event = if state filter
+                 then dropWhen (step event filter) inner
+                 else dropWhen (step event filter) (step event inner)
+
+stuff = dropWhen (not `after` mode) inner
+  where
+    inner = holdLast ^>> maybe emptyForm renderShow
+
+    mode = interpretModeInput >>^ accum False
+
+    interpretModeInput (KeyPress key) = case key of
+      Letter 'i'     -> const True
+      Special Escape -> const False
+      _              -> id
+    interpretModeInput _ = id
+
+main = runGtkZero stuff
