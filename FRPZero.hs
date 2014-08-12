@@ -21,20 +21,16 @@ step :: event -> State event state -> State event state
 step event (State sf s) = sf event
 
 before :: (event' -> event) -> State event state -> State event' state
-before f (State sf s) = State (newsf f sf) s
+before f (State sf s) = State newsf s
   where
-    newsf :: (event' -> event) -> (event -> State event state) -> event' -> State event' state
-    newsf f sf event = let (State sf' s') = sf (f event)
-                       in State (newsf f sf') s'
+    newsf event = before f (sf (f event))
 
 f >>^ state = f `before` state
 
 after :: (state -> state') -> State event state -> State event state'
-after f (State sf s) = State (newsf f sf) (f s)
+after f (State sf s) = State newsf (f s)
   where
-    newsf :: (state -> state') -> (event -> State event state) -> event -> State event state'
-    newsf f sf event = let (State sf' s') = sf event
-                       in State (newsf f sf') (f s')
+    newsf event = after f (sf event)
 
 state ^>> f = f `after` state
 
@@ -47,22 +43,14 @@ maybeFilter (State sf s) = State sf' s
 
 
 merge :: (stateleft -> stateright -> state) -> State e stateleft -> State e stateright -> State e state
-merge f (State sfl sl) (State sfr sr) = State (newsf f sfl sfr) (f sl sr)
+merge f (State sfl sl) (State sfr sr) = State newsf (f sl sr)
   where
-    newsf :: (l -> r -> o)
-          -> (event -> State event l)
-          -> (event -> State event r)
-          -> event
-          -> State event o
-    newsf f sfl sfr event = let (State sfl' sl') = sfl event
-                                (State sfr' sr') = sfr event
-                            in State (newsf f sfl' sfr') (f sl' sr')
+    newsf event = merge f (sfl event) (sfr event)
 
 loop :: State (event,hiddenstate) (state,hiddenstate) -> State event state
-loop (State sf (s, hs)) = State (newsf hs sf) s
+loop (State sf (state, hiddenstate)) = State newsf state
   where
-    newsf hs sf event = let (State sf' (s', hs')) = sf (event,hs)
-                        in State (newsf hs' sf') s'
+    newsf event = loop (sf (event,hiddenstate))
 
 constant :: state -> State event state
 constant state = State (const (constant state)) state
