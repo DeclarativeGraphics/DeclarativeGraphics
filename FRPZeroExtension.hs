@@ -89,13 +89,9 @@ dropAllEvents event = Nothing
 
 --- Testing
 
-constWidget form = \ leftSide processRight merge ->
-  interpreterToDecider dropAllEvents
-    >>^ choice merge leftSide (processRight (constant form))
+constWidget form = (dropAllEvents, constant form)
 
-lastEventWidget = \ leftSide processRight merge ->
-  interpreterToDecider takeAllEvents
-    >>^ choice merge leftSide (showLastEvent |> processRight)
+lastEventWidget = (takeAllEvents, showLastEvent)
 
 counterWidget = \ leftSide processRight merge ->
   parallel merge leftSide (const (+ 1) >>^ accum (0 :: Int) ^>> renderShow |> processRight)
@@ -116,12 +112,14 @@ testSwitch w1 w2 leftSide processRight merge =
       _              -> Right (KeyPress key)
     interpretInput event = Right event
 
-debugWidget widget = \ leftSide processRight merge ->
-  interpreterToDecider takeAllEvents
-    >>^ choice merge leftSide (widget showLastEvent id besides2 |> processRight)
+debugWidget (interpretInput, widget)
+  = (takeAllEvents, interpreterToDecider interpretInput
+                      >>^ choice besides2 showLastEvent widget)
 
-system widget = widget ignore id (\ l r -> r)
-systemDebug widget = widget showLastEvent id besides2
+system (interpretInput, widget) = interpretInput >>^ maybeFilter widget
+systemDebug (interpretInput, widget)
+  = interpreterToDecider interpretInput
+      >>^ choice besides2 showLastEvent widget
   
-main = runGtkZero $ systemDebug $ testSwitch (constWidget (renderString "new Widget!"))
-                                             counterWidget
+main = runGtkZero $ systemDebug $
+         debugWidget (constWidget (renderString "Jonas popelt"))

@@ -42,10 +42,10 @@ maybeFilter (State sf s) = State sf' s
     sf' Nothing      = maybeFilter (State sf s)
 
 
-merge :: (stateleft -> stateright -> state) -> State e stateleft -> State e stateright -> State e state
-merge f (State sfl sl) (State sfr sr) = State newsf (f sl sr)
+parallel :: (stateleft -> stateright -> state) -> State e stateleft -> State e stateright -> State e state
+parallel f (State sfl sl) (State sfr sr) = State newsf (f sl sr)
   where
-    newsf event = merge f (sfl event) (sfr event)
+    newsf event = parallel f (sfl event) (sfr event)
 
 loop :: State (event,hiddenstate) (state,hiddenstate) -> State event state
 loop (State sf (state, hiddenstate)) = State newsf state

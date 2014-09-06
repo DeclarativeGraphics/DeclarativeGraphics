@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module Main where
 
 import Data.Maybe
@@ -225,16 +226,132 @@ dropWhen filter inner = State sf (state inner)
                  then dropWhen (step event filter) inner
                  else dropWhen (step event filter) (step event inner)
 
-stuff = dropWhen (not `after` mode) inner
+choice :: (statel -> stater -> state)
+       -> State eventl statel
+       -> State eventr stater
+       -> State (Either eventl eventr) state
+choice merge left right = State sf (merge (state left) (state right))
   where
-    inner = holdLast ^>> maybe emptyForm renderShow
+    sf (Left  eventl) = choice merge (step eventl left) right
+    sf (Right eventr) = choice merge left (step eventr right)
 
-    mode = interpretModeInput >>^ accum False
-
+stuff = interpreterToDecider interpretModeInput
+          >>^ choice (const id) ignore (accum False ^>> renderShow)
+          -- >>^ choice besides2 showLastEvent (accum False ^>> renderShow)
+  where
     interpretModeInput (KeyPress key) = case key of
-      Letter 'i'     -> const True
-      Special Escape -> const False
-      _              -> id
-    interpretModeInput _ = id
+      Letter 'i'     -> Just $ const True
+      Special Escape -> Just $ const False
+      _              -> Nothing
+    interpretModeInput _ = Nothing
 
-main = runGtkZero stuff
+
+--- INTERESTING STUFF ---
+
+--- Prelude
+
+ignore :: State event ()
+ignore = constant ()
+
+interpreterToDecider :: (a -> Maybe b) -> a -> Either a b
+interpreterToDecider f event = case f event of
+  Just output  -> Right output
+  Nothing      -> Left event
+
+showLastEvent :: Show event => State event Form
+showLastEvent = holdLast ^>> maybe (renderString "No Events yet") renderShow
+
+takeAllEvents :: event -> Maybe event
+takeAllEvents event = Just event
+
+dropAllEvents :: event -> Maybe event
+dropAllEvents event = Nothing
+
+
+--- Stages of increasing complexity
+--
+-- widget part is the widget itself
+-- system part is the managing stuff, which takes the outermost widget
+--                and feeds the relevant stuff (normally only the output
+--                Form, in this case for debugging also the last Event
+--                which the widget didn't process) to the `real' system
+
+-- widget which only shows the Form `x' and ignores input
+--   ideally: system (constWidget x)
+constWidgetTest x
+  = interpreterToDecider dropAllEvents
+ -- ~~~~~~~~~~~~~~~~~~~~ ^^-widget--^^
+      >>^ choice besides2 showLastEvent (constant x)
+   -- >>^ choice takeRight  ignore      (constant x)
+      --  ^^^---------system--------^^^ ^^-widget-^^
+
+-- widget which shows last Event and so consumes all input
+--   ideally: system (lastEventWidget)
+lastEventWidgetTest
+  = interpreterToDecider takeAllEvents
+ -- ~~~~~~~~~~~~~~~~~~~~ ^^-widget--^^
+      >>^ choice besides2 showLastEvent showLastEvent
+      --  ^^^---------system--------^^^ ^^--widget-^^
+
+-- widget which shows inner widget's (constWidget "inner") Form
+--   and unused input, similar to the system, but as a widget
+--   itself and so gives the system an event stream (no events,
+--   uses all to give them to the inner widget and the inner
+--   widget's unused events will be shown; so they are also
+--   consumed) and a resulting Form
+--
+--  inner  - inner widget (the inner widget, in this case ~= `constWidget "inner"')
+--  outer  - outer widget (debugWidget itself)
+--  outer* - outer widget containing the inner widget
+--  
+--  ideally: system (debugWidget (constWidget (renderString "inner")))
+debugWidgetTest1
+  = interpreterToDecider takeAllEvents
+ -- ~~~~~~~~~~~~~~~~~~~~ ^^--outer--^^
+      >>^ choice besides2 showLastEvent debugWidget
+      --  ^^^---------system--------^^^ ^^-outer*-^
+  where
+    debugWidget
+      = interpreterToDecider dropAllEvents
+     -- ~~~~~~~~~~~~~~~~~~~^ ^^--inner--^^
+          >>^ choice besides2 showLastEvent (constant (renderString "inner"))
+          --  ^^^--outer (debugWidget)--^^^ ^^-inner (constWidget "inner")-^^
+
+
+-- widget which shows inner widget's (lastEventWidget) Form
+--   and unused input, similar to the system, but as a widget
+--   itself and so gives the system an event stream (no events,
+--   uses all to give them to the inner widget and the inner
+--   widget's unused events will be shown; so they are also
+--   consumed) and a resulting Form
+--
+--  inner  - inner widget (the inner widget, in this case ~= `lastEventWidget')
+--  outer  - outer widget (debugWidget itself)
+--  outer* - outer widget containing the inner widget
+--  
+--  ideally: system (debugWidget lastEventWidget)
+debugWidgetTest2
+  = interpreterToDecider takeAllEvents
+ -- ~~~~~~~~~~~~~~~~~~~~ ^^--outer--^^
+      >>^ choice besides2 showLastEvent debugWidget
+      --  ^^^---------system--------^^^ ^^-outer*-^
+  where
+    debugWidget
+      = interpreterToDecider takeAllEvents
+     -- ~~~~~~~~~~~~~~~~~~~^ ^^--inner--^^
+          >>^ choice besides2 showLastEvent showLastEvent
+          --  ^^^--outer (debugWidget)--^^^ ^^^-inner-^^^
+
+textInputWidgetTest
+  = interpreterToDecider interpretTextInput
+      >>^ choice besides2 showLastEvent textInputState
+  where
+    interpretTextInput (KeyPress key) = case key of
+      Letter c           -> Just $ textInputInsert c
+      Special ArrLeft    -> Just $ maybeApply textInputMoveLeft
+      Special ArrRight   -> Just $ maybeApply textInputMoveRight
+      Special Backspace  -> Just $ maybeApply textInputDelete
+      _                  -> Nothing
+    interpretTextInput _ = Nothing
+
+    textInputState = accum emptyTextInput ^>> renderTextInput
