@@ -15,39 +15,38 @@ import Graphics.Rendering.Cairo (liftIO)
 
 import Graphics.Declarative.Form
 
-import FRP
-
 import KeyboardInput
 
 
 data GtkEvent = Expose
               | KeyPress KeyboardInput
-              deriving (Show)
+              deriving (Show, Eq)
 
 
-type GtkFRP = FRP (Event GtkEvent) (Behavior Form)
-
-runGTK :: GtkFRP -> IO ()
 runGTK = runGTKat (0.5, 0.5)
 
-runGTKat :: (Double, Double) -> GtkFRP -> IO ()
-runGTKat origin frp = gtkBoilerplate $ \canvas -> do
-  frpRef <- newIORef frp
+runGTKat :: (Double, Double)
+         -> state
+         -> (GtkEvent -> state -> state)
+         -> (state -> Form)
+         -> IO ()
+runGTKat origin state step formOf = gtkBoilerplate $ \canvas -> do
+  stateRef <- newIORef state
 
-  let frpProcessEvent :: Maybe GtkEvent -> E.EventM any ()
-      frpProcessEvent (Just frpEvent) = liftIO $ do
-        frp <- readIORef frpRef
-        let (newfrp, formBehavior) = stepEvent frp frpEvent
-        writeIORef frpRef newfrp
-        putStrLn $ "Got event " ++ show frpEvent
-        renderForm canvas origin (behaviorValue formBehavior)
-      frpProcessEvent Nothing = return ()
+  let processEvent :: Maybe GtkEvent -> E.EventM any ()
+      processEvent (Just event) = liftIO $ do
+        putStrLn $ "Got event " ++ show event
+        state <- readIORef stateRef
+        let newstate = step event state
+        writeIORef stateRef newstate
+        renderForm canvas origin (formOf newstate)
+      processEvent Nothing = return ()
 
-      processEvent :: E.EventM i (Maybe GtkEvent) -> E.EventM i Bool
-      processEvent f = f >>= frpProcessEvent >> E.eventSent
+      gtkProcessEvent :: E.EventM i (Maybe GtkEvent) -> E.EventM i Bool
+      gtkProcessEvent f = f >>= processEvent >> E.eventSent
 
-  canvas `on` G.exposeEvent   $ processEvent handleExpose
-  canvas `on` G.keyPressEvent $ processEvent handleKeyPress
+  canvas `on` G.exposeEvent   $ gtkProcessEvent handleExpose
+  canvas `on` G.keyPressEvent $ gtkProcessEvent handleKeyPress
 
 
 handleExpose :: E.EventM E.EExpose (Maybe GtkEvent)
@@ -87,7 +86,7 @@ gtkBoilerplate f = do
   G.containerAdd window canvas
 
   G.set canvas [G.widgetCanFocus := True]
-  G.widgetModifyBg canvas G.StateNormal white
+  G.widgetModifyBg canvas G.StateNormal gtkWhite
   G.widgetShowAll window
 
   G.onDestroy window G.mainQuit
@@ -97,7 +96,7 @@ gtkBoilerplate f = do
   G.mainGUI 
 
 
-white = G.Color 65535 65535 65535
+gtkWhite = G.Color 65535 65535 65535
 
 
 render :: G.WidgetClass w => w -> (Double -> Double -> C.Render ()) -> IO ()

@@ -2,10 +2,9 @@
 module Main where
 
 import Data.Maybe
-import Data.List (replicate)
+import Data.Either
+import Data.List (replicate, partition)
 
-import FRPZero
-import FRPZeroGtk
 import GtkUtils
 
 import Graphics.Declarative.Envelope
@@ -13,7 +12,7 @@ import Graphics.Declarative.Shape
 import Graphics.Declarative.Form
 import Graphics.Declarative.Combinators
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, liftM2)
 
 import Colors
 import Utils
@@ -29,26 +28,27 @@ renderShow = renderString . show
 renderString :: String -> Form
 renderString = text ourTextStyle
 
-besides ls = centered $ groupBy toRight ls
-besides2 x y = centered $ groupBy toRight [x, y]
+besides ls = centeredX $ groupBy toRight ls
+besides2 x y = besides [x,y]
 
 x `above` y = groupBy toBottom [x, y]
 
 renderTextInput :: Bool -> TextInput -> Form
 renderTextInput focused (l,r)
-  = border <| centered <| groupBy toRight [centered leftText, cursor, centered rightText]
+  = border <| centeredX <| groupBy toRight [leftText, cursor, rightText]
   where
     leftText  = text ourTextStyle (reverse l)
     rightText = text ourTextStyle r
     cursor = if focused
-                then rectangle 2 27 |> filled black |> flip withEnvelope emptyEnvelope
+                then rectangle 2 33 |> filled black |> alignY 0 |> flip withEnvelope emptyEnvelope
                 else emptyForm
     border = padded 2 . debugEnv (if focused then orange else grey) . padded 2
 
 
 debugEnv color form
-  = (outlined ((solid color) { lineWidth = 3 }) . fromEnvelope . fEnvelope $ form)
-    `atop` form
+  = padded 4 <|
+      (outlined ((solid color) { lineWidth = 2 }) . fromEnvelope . fEnvelope $ form)
+      `atop` form
 
 
 interpretTextInput :: GtkEvent -> (TextInput -> Maybe TextInput)
@@ -60,96 +60,201 @@ interpretTextInput (KeyPress key) = case key of
   _                  -> const Nothing
 interpretTextInput _ = const Nothing
 
-type StepFunc state = GtkEvent -> state -> Maybe state
-type RenderFunc state = Bool -> state -> Form
+type StepFunc value = GtkEvent -> Maybe (Widget value)
+type RenderFunc = Bool -> Form
 
 data Widget value
-  = forall state .
-      Widget state
-             (StepFunc state)
-             (RenderFunc state)
-             (state -> value)
+  = Widget { stepWidget'    :: StepFunc value
+           , renderWidget'  :: RenderFunc
+           , valueOfWidget  :: value
+           }
 
-stepWidget :: GtkEvent -> Widget value -> Maybe (Widget value)
-stepWidget event (Widget state step render valueOf)
-  = do newState <- step event state
-       return (Widget newState step render valueOf)
+stepWidget = flip stepWidget'
+renderWidget = flip renderWidget'
 
-valueOfWidget :: Widget value -> value
-valueOfWidget (Widget state step render valueOf) = valueOf state
+widget :: state
+       -> (GtkEvent -> state -> Maybe state)
+       -> (Bool -> state -> Form)
+       -> (state -> value)
+       -> Widget value
+widget state step render valueOf
+  = Widget
+      (\ event   -> do newState <- step event state
+                       return $ widget newState step render valueOf)
+      (\ focused -> render focused state)
+      (valueOf state)
 
-renderWidget :: Bool -> Widget value -> Form
-renderWidget focused (Widget state step render valueOf) = render focused state
-
+textInputWidget :: String -> Widget String
 textInputWidget init
-  = Widget (toTextInput init) interpretTextInput renderTextInput fromTextInput
+  = widget (toTextInput init) interpretTextInput renderTextInput fromTextInput
 
-modeWrapper widget
-  = Widget (False, widget) step render (valueOfWidget . snd)
+modeWrapper' :: (Bool -> (Bool, Widget value) -> Form) -> Widget value -> Widget value
+modeWrapper' render wrappedWidget
+  = widget (False, wrappedWidget) step render (valueOfWidget . snd)
   where
-    step event (True, widget) = case progressInner event widget of
+    step event (True, wrappedWidget) = case progressInner event wrappedWidget of
       Just newWidget -> Just (True, newWidget)
-      Nothing        -> progressOuter event (True, widget)
-    step event (False, widget) = progressOuter event (False, widget)
+      Nothing        -> progressOuter event (True, wrappedWidget)
+    step event (False, wrappedWidget) = progressOuter event (False, wrappedWidget)
 
     progressInner = stepWidget
 
-    progressOuter (KeyPress (Letter 'i')) (False, widget)
-      = Just (True, widget)
-    progressOuter (KeyPress (Special Escape)) (True, widget)
-      = Just (False, widget)
+    progressOuter (KeyPress (Letter 'i')) (False, wrappedWidget)
+      = Just (True, wrappedWidget)
+    progressOuter (KeyPress (Special Escape)) (True, wrappedWidget)
+      = Just (False, wrappedWidget)
     progressOuter _ _ = Nothing
 
-    render True (False, widget)
-      = debugEnv blue <| renderWidget False widget
-    render True (True, widget)
-      = renderWidget True widget
-    render False (_, widget)
-      = renderWidget False widget
+modeWrapper = modeWrapper' render
+  where
+    render focused (insertMode, wrappedWidget)
+      = debugEnv color <| renderWidget (focused && insertMode) wrappedWidget
+      where
+        color = if focused && not insertMode then lightOrange else lightGrey
 
 
+modeInputWidget :: String -> Widget String
 modeInputWidget = modeWrapper . textInputWidget
 
 
-{-
-treeWidget parent children
-    progressOuter (KeyPress (Special ArrLeft))  = moveTreeLeft
-    progressOuter (KeyPress (Special ArrRight)) = moveTreeRight
-    progressOuter (KeyPress (Special ArrDown))  = moveTreeDown
-    progressOuter (KeyPress (Special ArrUp))    = moveTreeUp
-    progressOuter (KeyPress (Letter 'a'))       = insertTree (modeInputWidget "")
-    progressOuter (KeyPress (Letter 'x'))       = deleteTree
-    progressOuter _                             = const Nothing
-      -}
-
-data Value = Num Int | Operator Operator deriving (Show,Eq)
+data Value = Num Int | Operator Operator | Prim Primitive deriving (Show,Eq)
 data Operator = Add | Sub | Mul deriving (Show,Eq)
+data Primitive = Primitive Name PrimFunc
+type PrimFunc = [Value] -> Interpreted Value
+type Name = String
+type Interpreted value = Either ErrorMsg value
+type ErrorMsg = String
+
+showValue (Num int)     = show int
+showValue (Operator op) = show op
+showValue (Prim prim)   = show prim
+
+runPrimitive (Primitive name function) args = function args
+
+instance Show Primitive where
+  show (Primitive name function) = name
+instance Eq Primitive where
+  _ == _ = False
 
 constWidget :: Form -> Form -> value -> Widget value
 constWidget focusedForm unfocusedForm value
-  = Widget () step render (const value)
+  = widget () step render (const value)
   where
     step _ _ = Nothing
     render True _  = focusedForm
     render False _ = unfocusedForm
 
-operatorExprWidget name operator
+emptyWidget :: value -> Widget value
+emptyWidget = constWidget emptyForm emptyForm 
+
+labelWidget :: String -> value -> Widget value
+labelWidget name value
   = constWidget (text ourTextStyle{ textColor = orange } name)
-                (renderString name) (Operator operator)
+                (renderString name)
+                value
 
-addOperatorExprWidget = operatorExprWidget "+" Add
-subOperatorExprWidget = operatorExprWidget "-" Sub
-mulOperatorExprWidget = operatorExprWidget "*" Mul
+operatorExprWidget :: String -> Operator -> Widget Value
+operatorExprWidget name operator = labelWidget name (Operator operator)
+primitiveExprWidget :: String -> PrimFunc -> Widget Primitive
+primitiveExprWidget name function = labelWidget name (Primitive name function)
+
+addPrimitive, subPrimitive, mulPrimitive :: PrimFunc
+addPrimitive [Num x, Num y] = Right $ Num (x + y)
+addPrimitive args           = Left  $ "invalid arguments for primitive `+`: " ++ show args
+subPrimitive [Num x, Num y] = Right $ Num (x - y)
+subPrimitive args           = Left  $ "invalid arguments for primitive `-`: " ++ show args
+mulPrimitive [Num x, Num y] = Right $ Num (x * y)
+mulPrimitive args           = Left  $ "invalid arguments for primitive `*`: " ++ show args
+
+addPrimitiveExprWidget, subPrimitiveExprWidget, mulPrimitiveExprWidget :: Widget Primitive
+addPrimitiveExprWidget = primitiveExprWidget "+" addPrimitive
+subPrimitiveExprWidget = primitiveExprWidget "-" subPrimitive
+mulPrimitiveExprWidget = primitiveExprWidget "*" mulPrimitive
+primitivesSwitchWidget :: Widget Value
+primitivesSwitchWidget
+  = mapWidgetValue Prim $
+      switchWidgetComma
+        [addPrimitiveExprWidget, subPrimitiveExprWidget, mulPrimitiveExprWidget]
+
+addOperatorExprWidget, subOperatorExprWidget, mulOperatorExprWidget :: Widget Value
+addOperatorExprWidget = operatorExprWidget "Add" Add
+subOperatorExprWidget = operatorExprWidget "Sub" Sub
+mulOperatorExprWidget = operatorExprWidget "Mul" Mul
+operatorsSwitchWidget :: Widget Value
 operatorsSwitchWidget
-  = switchWidget [addOperatorExprWidget, subOperatorExprWidget, mulOperatorExprWidget]
-intValueExprWidget = mapWidgetValue Num . intWidget
+  = switchWidgetComma
+      [addOperatorExprWidget, subOperatorExprWidget, mulOperatorExprWidget]
 
-mapWidgetValue f (Widget state step render value)
-  = Widget state step render (f . value)
+exprSwitchWidgetExtend wrappedWidget
+  = extendWidget exprSwitchWidgetExtend $
+      switchWidget' [KeyPress (Letter 'n')] [KeyPress (Letter 'm')] $
+        [modeWrapper' renderInterpretedValue $
+           operatorWidget exprSwitchWidget extendedWidget exprSwitchWidget
+        ,modeWrapper $ applicationWidget exprSwitchWidget exprSwitchWidget [extendedWidget]
+        ,mapWidgetValue Just primitivesSwitchWidget
+        ,mapWidgetValue Just operatorsSwitchWidget
+        ,intValueExprWidget 0
+        ]
+  where
+    extendedWidget = extendWidget exprSwitchWidgetExtend wrappedWidget
 
-switchWidget :: [Widget value] -> Widget value
-switchWidget widgets
-  = Widget (focus widgets) step render (valueOfWidget . getFocused)
+exprSwitchWidget
+  = extendWidget exprSwitchWidgetExtend $
+      switchWidget' [KeyPress (Letter 'n')] [KeyPress (Letter 'm')] $
+        [intValueExprWidget 0
+        ,mapWidgetValue Just primitivesSwitchWidget
+        ,mapWidgetValue Just operatorsSwitchWidget
+        ,modeWrapper $ applicationWidget exprSwitchWidget
+                                         exprSwitchWidget [exprSwitchWidget]
+        ,modeWrapper' renderInterpretedValue $
+           operatorWidget exprSwitchWidget exprSwitchWidget exprSwitchWidget
+        ]
+
+
+intValueExprWidget
+  = mapWidgetValue (liftM Num) . intWidget
+
+renderInterpretedValue focused (insertMode, wrappedWidget)
+  = groupBy toBottom [widgetForm
+                     ,renderValue (centered line)
+                     ]
+  where
+    line = rectangle widgetWidth height |> filled lineColor
+    widgetForm = renderWidget (insertMode && focused) wrappedWidget
+    widgetEnvelope = fEnvelope widgetForm
+    widgetWidth = envToRight widgetEnvelope - envToLeft widgetEnvelope
+    height = 10
+    lineColor = if focused
+                   then (if insertMode then darkGrey else orange)
+                   else grey
+    tColor = Colors.white
+    renderValue = atop $ renderString valueText
+    valueText = maybe "no value" showValue $ valueOfWidget wrappedWidget
+    renderString
+      = centered . text defaultTextStyle { fontSize = height, textColor = tColor, bold = True }
+
+
+mapWidgetValue f (Widget step render value)
+  = Widget (liftM (mapWidgetValue f) . step) render (f value)
+
+extendWidget :: (Widget value -> Widget value) -> Widget value -> Widget value
+extendWidget extend wrappedWidget
+  = widget wrappedWidget step renderWidget valueOfWidget
+  where
+    step event wrappedWidget = case stepWidget event wrappedWidget of
+      Just newWidget -> Just newWidget
+      Nothing        -> case event of
+        KeyPress (Letter 'e') -> Just (extend wrappedWidget)
+        _                     -> Nothing
+
+switchWidget = switchWidget' (map KeyPress [Special ArrLeft, Letter 'h'])
+                             (map KeyPress [Special ArrRight, Letter 'l'])
+
+switchWidgetComma = switchWidget' [KeyPress (Letter ',')] [KeyPress (Letter '.')]
+
+switchWidget' :: [GtkEvent] -> [GtkEvent] -> [Widget value] -> Widget value
+switchWidget' prevEvent nextEvent widgets
+  = widget (focus widgets) step render (valueOfWidget . getFocused)
   where
     step event focus = case progressInner event focus of
       Just newFocus -> Just newFocus
@@ -159,16 +264,41 @@ switchWidget widgets
       = do newFocused <- stepWidget event (getFocused focus)
            return (setFocused newFocused focus)
 
-    progressOuter (KeyPress (Special ArrLeft))  = moveLeft
-    progressOuter (KeyPress (Special ArrRight)) = moveRight
-    progressOuter _                             = const Nothing
+    progressOuter event = if      event `elem` prevEvent then Just . maybeApply moveLeft
+                          else if event `elem` nextEvent then Just . maybeApply moveRight
+                          else                                const Nothing
 
     render focused = renderWidget focused . getFocused
 
-treeWidget :: Widget parent -> [Widget value] -> Widget (parent, [value])
-treeWidget parent children
-  = Widget (True, parent, hlistWidget children) step render valueOf
+chooseWidget :: [(GtkEvent, Widget value)] -> Widget value
+chooseWidget (chosenWidget : otherWidgets)
+  = widget (chosenWidget, otherWidgets)
+           step
+           render
+           (valueOfWidget . snd . fst)
   where
+    step event ((chooseEvent, chosenWidget), otherWidgets)
+      = case stepWidget event chosenWidget of
+          Just newChosenWidget -> Just ((chooseEvent, newChosenWidget), otherWidgets)
+          Nothing -> case partition ((== event) . fst) otherWidgets of
+                       ([(newChooseEvent, newChosenWidget)], otherWidgets)
+                         -> Just ((newChooseEvent, newChosenWidget)
+                                 ,(chooseEvent, chosenWidget) : otherWidgets)
+                       _ -> Nothing
+    
+    render focused = renderWidget focused . snd . fst
+
+treeWidget :: Widget parentvalue
+           -> Widget childvalue
+           -> [Widget childvalue]
+           -> Widget (parentvalue, [childvalue])
+treeWidget parentWidget newChildWidget childWidgets
+  = widget (True, parentWidget, childrenWidget) step render valueOf
+  where
+    childrenWidget
+      = chooseWidget [(KeyPress (Letter 'a'), hlistWidget newChildWidget childWidgets)
+                     ,(KeyPress (Letter 'x'), emptyWidget [])
+                     ]
     step event focus = case progressInner event focus of
       Just newFocus -> Just newFocus
       Nothing       -> progressOuter event focus
@@ -181,44 +311,155 @@ treeWidget parent children
            return $ (False, parent, newChildren)
 
     progressOuter (KeyPress (Special ArrUp))   (False, p, c) = Just (True, p, c)
+    progressOuter (KeyPress (Letter 'k'))      (False, p, c) = Just (True, p, c)
     progressOuter (KeyPress (Special ArrDown)) (True, p, c)  = Just (False, p, c)
+    progressOuter (KeyPress (Letter 'j'))      (True, p, c)  = Just (False, p, c)
     progressOuter _                            _             = Nothing
 
     apply2List f [x,y] = f x y
 
     render focused (True, parent, children)
-      = renderWidget focused parent `above` renderWidget False children
+      = centered (renderWidget focused parent) `above` renderWidget False children
     render focused (False, parent, children)
-      = renderWidget False parent `above` renderWidget focused children
+      = centered (renderWidget False parent) `above` renderWidget focused children
 
     valueOf (_, parent, children) = (valueOfWidget parent, valueOfWidget children)
 
-applicationWidget parent children
-  = mapWidgetValue (uncurry applyOperator) $ treeWidget parent children
+operatorWidget operator leftarg rightarg
+  = widget ("operator", operator, leftarg, rightarg) step render value
   where
-    applyOperator (Operator op) args = operate op args
-    applyOperator op            args = Left $ "invalid Operator: " ++ show op
+    step event state = case progressInner event state of
+      Just newState -> Just newState
+      Nothing       -> progressOuter event state
 
-    operate Add [Num x, Num y] = Right $ Num (x + y)
-    operate Sub [Num x, Num y] = Right $ Num (x - y)
-    operate Mul [Num x, Num y] = Right $ Num (x * y)
+    progressInner event ("operator", operator, leftarg, rightarg)
+      = do newOperator <- stepWidget event operator
+           return ("operator", newOperator, leftarg, rightarg)
+    progressInner event ("left", operator, leftarg, rightarg)
+      = do newLeftarg <- stepWidget event leftarg
+           return ("left", operator, newLeftarg, rightarg)
+    progressInner event ("right", operator, leftarg, rightarg)
+      = do newRightarg <- stepWidget event rightarg
+           return ("right", operator, leftarg, newRightarg)
 
-    operate _   args           = Left $ "invalid arguments: " ++ show args
+    progressOuter (KeyPress (Letter 'h')) ("right", o, l, r)
+      = Just ("operator", o, l, r)
+    progressOuter (KeyPress (Letter 'h')) ("operator", o, l, r)
+      = Just ("left", o, l, r)
 
-intWidget :: Int -> Widget Int
+    progressOuter (KeyPress (Letter 'l')) ("left", o, l, r)
+      = Just ("operator", o, l, r)
+    progressOuter (KeyPress (Letter 'l')) ("operator", o, l, r)
+      = Just ("right", o, l, r)
+
+    progressOuter (KeyPress (Letter 'X')) (focus, o, l, r)
+      = Just (focus, o, r, l)
+
+    progressOuter _ _ = Nothing
+
+    render focused state
+      = renderError (interpret state) $
+          besides $ renderParts focused state
+    renderParts focused ("left", o, l, r) = [renderWidget focused l
+                                            ,renderWidget False o
+                                            ,renderWidget False r]
+    renderParts focused ("operator", o, l, r) = [renderWidget False l
+                                                ,renderWidget focused o
+                                                ,renderWidget False r]
+    renderParts focused ("right", o, l, r) = [renderWidget False l
+                                             ,renderWidget False o
+                                             ,renderWidget focused r]
+
+    renderError (Just (Left error)) rest
+      = groupBy toTop [rest
+                      ,centeredX $ text ourTextStyle { textColor = red } error
+                      ]
+    renderError _ rest = rest
+
+    interpret (_, o, l, r) = applyOperator (valueOfWidget o) (map valueOfWidget [l, r])
+
+    value = interpretedToMaybe . interpret
+
+interpretedToMaybe (Just (Right v)) = Just v
+interpretedToMaybe _                = Nothing
+
+applicationWidget parent newChild children
+  = widget (treeWidget parent newChild children) stepWidget render value
+  where
+    render focused state
+      = centered (renderInterpreted (interpret state))
+        `above`
+        renderWidget focused state
+    interpret = uncurry applyOperator . valueOfWidget
+    value = interpretedToMaybe . interpret
+
+applyOperator op args = liftM2 applyOperator' op (sequence args)
+applyOperator' (Operator op) args = operate op args
+applyOperator' (Prim prim)   args = runPrimitive prim args
+applyOperator' op            args = Left $ "invalid Operator: " ++ show op
+
+operate Add [Num x, Num y] = Right $ Num (x + y)
+operate Sub [Num x, Num y] = Right $ Num (x - y)
+operate Mul [Num x, Num y] = Right $ Num (x * y)
+operate _   args           = Left $ "invalid arguments: " ++ show args
+
+maybeRead :: Read r => String -> Maybe r
+maybeRead str = case reads str of
+ [(x,"")] -> Just x
+ _        -> Nothing
+
+intWidget :: Int -> Widget (Maybe Int)
 intWidget def
-  = Widget def step render id
-  where step (KeyPress (Special ArrLeft))  x = Just (x - 1)
-        step (KeyPress (Special ArrRight)) x = Just (x + 1)
-        step _ _ = Nothing
+  = widget (Left def) step render value
+  where step (KeyPress (Letter 'i')) (Left x)
+          = Just (Right (textInputWidget (show x)))
+        step event (Left x)
+          = do newX <- stepNormalMode event x
+               return (Left newX)
+        step event (Right state)
+          = do newState <- stepInsertMode event state
+               return newState
 
-        render True  value = text ourTextStyle { textColor = orange } (show value)
-        render False value = text ourTextStyle (show value)
+        stepNormalMode (KeyPress (Letter '-')) x = Just (x - 1)
+        stepNormalMode (KeyPress (Letter ',')) x = Just (x - 1)
+        stepNormalMode (KeyPress (Letter '+')) x = Just (x + 1)
+        stepNormalMode (KeyPress (Letter '.')) x = Just (x + 1)
+        stepNormalMode  _ _ = Nothing
+
+        stepInsertMode event textInput = case stepWidget event textInput of
+          Just newTextInput -> Just (Right newTextInput)
+          Nothing -> case event of
+            KeyPress (Special Return) -> Just switchMode
+            KeyPress (Special Escape) -> Just switchMode
+            _ -> Nothing
+          where
+            switchMode = maybe (Right textInput) Left (textInputNumber textInput)
+
+        textInputNumber :: Widget String -> Maybe Int
+        textInputNumber = maybeRead . valueOfWidget
+
+        render focused (Left x)          = renderNormalMode focused x
+        render focused (Right textInput) = renderInsertMode focused textInput
+
+        renderNormalMode True  value = text ourTextStyle { textColor = orange } (show value)
+        renderNormalMode False value = text ourTextStyle (show value)
+
+        renderInsertMode focused textInput
+          = addErrorMessage $ renderWidget focused textInput
+          where
+            addErrorMessage = case textInputNumber textInput of
+              Just _  -> id
+              Nothing -> \ form ->
+                groupBy toTop [form
+                              ,centeredX $ text ourTextStyle { textColor = red } "invalid Int"
+                              ]
+
+        value = either Just textInputNumber
         
 
-hlistWidget :: [Widget value] -> Widget [value]
-hlistWidget widgets
-  = Widget (focus widgets) step render valueOf
+hlistWidget :: Widget value -> [Widget value] -> Widget [value]
+hlistWidget newWidget widgets
+  = widget (focus widgets) step render valueOf
   where
     step event focus = case progressInner event focus of
       Just newFocus -> Just newFocus
@@ -234,8 +475,12 @@ hlistWidget widgets
                   -> Maybe (Focus (Widget ...))
                   -}
     progressOuter (KeyPress (Special ArrLeft))  = moveLeft
+    progressOuter (KeyPress (Letter 'h'))       = moveLeft
     progressOuter (KeyPress (Special ArrRight)) = moveRight
-    --progressOuter (KeyPress (Letter 'a'))       = insertFocus (modeInputWidget "")
+    progressOuter (KeyPress (Letter 'l'))       = moveRight
+    progressOuter (KeyPress (Letter 'H'))       = moveElementLeft
+    progressOuter (KeyPress (Letter 'L'))       = moveElementRight
+    progressOuter (KeyPress (Letter 'a'))       = insertFocus newWidget
     progressOuter (KeyPress (Letter 'x'))       = deleteFocus
     progressOuter _                             = const Nothing
 
@@ -244,11 +489,9 @@ hlistWidget widgets
 
     valueOf = map valueOfWidget . focusAsList
 
-widgetAsState :: Show value => Widget value -> State GtkEvent Form
-widgetAsState (Widget state step render valueOf)
-  = (maybeApply . step)
-    >>^ accum state ^>>
-    biapply above (render True) (centered . renderShow . valueOf)
+renderInterpreted = maybe emptyForm renderInterpreted'
+renderInterpreted' (Right value) = renderString (showValue value)
+renderInterpreted' (Left error)  = text ourTextStyle { textColor = red } error
 
 biapply merge f g x = merge (f x) (g x)
 
@@ -303,6 +546,12 @@ moveRight (left, focus, [])      = Nothing
 moveLeft (x:left, focus, right) = Just (left, x, focus:right)
 moveLeft ([], focus, right)     = Nothing
 
+moveElementRight (left, focus, x:right) = Just (x:left, focus, right)
+moveElementRight (left, focus, [])      = Nothing
+
+moveElementLeft  (x:left, focus, right) = Just (left, focus, x:right)
+moveElementLeft  ([], focus, right)     = Nothing
+
 onFocused f (left, focus, right) = (left, f focus, right)
 onFocusedLifted f (left, focus, right) = do newFocus <- f focus
                                             return (left, newFocus, right)
@@ -320,10 +569,27 @@ deleteFocus _                      = Nothing
 
 -- step function refactorisieren!!!!!
 
-main = runGtkZero $ widgetAsState $
+doubleApply f x = f x x
+
+runGTKWidget w = runGTK w (maybeApply . stepWidget) (renderWidget True)
+
+main = runGTKWidget $
+{-
+  doubleApply constWidget (debugEnvelope form) ()
+  where
+    form = rectangle 40 40 |> filled black |> alignY 0
+    -}
+  exprSwitchWidget
+{-
+  operatorWidget (modeWrapper primitivesSwitchWidget)
+    (modeWrapper $ intValueExprWidget 0)
+    (modeWrapper $ intValueExprWidget 0)
+-}
+{-
   applicationWidget
-    # operatorsSwitchWidget
+    # operatorsSwitchWidget -- oder primitivesSwitchWidget
     # replicate 2 (modeWrapper $ intValueExprWidget 0)
+    -}
 {-
   treeWidget
     # modeInputWidget "parent"

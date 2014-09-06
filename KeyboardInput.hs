@@ -1,23 +1,25 @@
 module KeyboardInput where
 
+import System.Glib.UTFString
 import Debug.Trace
 
 import qualified Graphics.UI.Gtk as G
 
 data KeyboardInput = Letter Char
                    | Special SpecialKey
-                   deriving (Show)
+                   deriving (Show, Eq)
 
-data SpecialKey = Escape | Backspace | Shift
+data SpecialKey = Return | Escape | Backspace | Shift
                 | ArrLeft | ArrUp | ArrRight | ArrDown
-                deriving (Show)
+                deriving (Show, Eq)
 
 
 keyboardInputFromGdk :: G.KeyVal -> Maybe KeyboardInput
 keyboardInputFromGdk k = maybe parseSpecialKey parseLetter (G.keyToChar k)
   where 
     parseLetter c = Just $ Letter c
-    parseSpecialKey = case G.keyName k of
+    parseSpecialKey = case glibToString $ G.keyName k of
+      "Return"    -> Just $ Special Return
       "Escape"    -> Just $ Special Escape
       "BackSpace" -> Just $ Special Backspace
       "Shift_L"   -> Just $ Special Shift
