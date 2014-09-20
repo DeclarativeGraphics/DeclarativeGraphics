@@ -167,12 +167,22 @@ paddedWith (padX, padY) (Form (Envelope l t r b) rend) = Form {
 padded :: Double -> Form -> Form
 padded padding = paddedWith (padding, padding)
 
-originatedRel :: (Double, Double) -> Form -> Form
-originatedRel (relX, relY) form@(Form (Envelope l t r b) rend) =
-  moved (relX * (l-r), relY * (t-b)) $ moved (-l, -t) form
+alignX :: Double -> Form -> Form
+alignX relX form@(Form (Envelope l t r b) rend) =
+  moved (relX * (l-r), 0) $ moved (-l, 0) form
+
+alignY :: Double -> Form -> Form
+alignY relY form@(Form (Envelope l t r b) rend) =
+  moved (0, relY * (t-b)) $ moved (0, -t) form
 
 centered :: Form -> Form
-centered = originatedRel (0.5, 0.5)
+centered = centeredX . centeredY
+
+centeredX :: Form -> Form
+centeredX = alignX 0.5
+
+centeredY :: Form -> Form
+centeredY = alignY 0.5
 
 modifiedEnvelope :: (Envelope -> Envelope) -> Form -> Form
 modifiedEnvelope modify form = form `withEnvelope` (modify (fEnvelope form))
