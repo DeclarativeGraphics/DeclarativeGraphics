@@ -184,6 +184,9 @@ centeredX = alignX 0.5
 centeredY :: Form -> Form
 centeredY = alignY 0.5
 
+invisible :: Form -> Form
+invisible (Form env _) = Form env $ return ()
+
 modifiedEnvelope :: (Envelope -> Envelope) -> Form -> Form
 modifiedEnvelope modify form = form `withEnvelope` (modify (fEnvelope form))
 
