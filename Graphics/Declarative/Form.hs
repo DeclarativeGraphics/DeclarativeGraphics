@@ -119,9 +119,9 @@ text style content = Form {
   getFontDescription = do
     desc <- fontDescriptionNew
     fontDescriptionSetStyle desc $
-      if (italic style) then StyleItalic else StyleNormal
+      if italic style then StyleItalic else StyleNormal
     fontDescriptionSetWeight desc $
-      if (bold style) then WeightBold else WeightNormal
+      if bold style then WeightBold else WeightNormal
     fontDescriptionSetSize desc $ fontSize style
     fontDescriptionSetFamily desc $ fontFamily style
     return desc
@@ -168,11 +168,11 @@ padded :: Double -> Form -> Form
 padded padding = paddedWith (padding, padding)
 
 alignX :: Double -> Form -> Form
-alignX relX form@(Form (Envelope l t r b) rend) =
+alignX relX form@(Form (Envelope l _ r _) _) =
   moved (relX * (l-r), 0) $ moved (-l, 0) form
 
 alignY :: Double -> Form -> Form
-alignY relY form@(Form (Envelope l t r b) rend) =
+alignY relY form@(Form (Envelope _ t _ b) _) =
   moved (0, relY * (t-b)) $ moved (0, -t) form
 
 centered :: Form -> Form
@@ -188,15 +188,18 @@ invisible :: Form -> Form
 invisible (Form env _) = Form env $ return ()
 
 modifiedEnvelope :: (Envelope -> Envelope) -> Form -> Form
-modifiedEnvelope modify form = form `withEnvelope` (modify (fEnvelope form))
+modifiedEnvelope modify form = form `withEnvelope` modify (fEnvelope form)
 
 withEnvelope :: Form -> Envelope -> Form
 withEnvelope (Form _ rend) envelope = Form envelope rend
 
+noEnvelope :: Form -> Form
+noEnvelope form = form `withEnvelope` emptyEnvelope
+
 debugEnvelope :: Form -> Form
 debugEnvelope form =
-  (withEnvelope (outlined (solid (1, 0, 0)) $ circle 2) emptyEnvelope)
+  withEnvelope (outlined (solid (1, 0, 0)) $ circle 2) emptyEnvelope
   `atop`
-  (outlined (solid (1, 0, 0)) $ fromEnvelope $ fEnvelope form)
+  outlined (solid (1, 0, 0)) (fromEnvelope $ fEnvelope form)
   `atop`
   form
