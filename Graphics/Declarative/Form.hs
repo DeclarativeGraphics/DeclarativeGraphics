@@ -203,3 +203,25 @@ debugEnvelope form =
   outlined (solid (1, 0, 0)) (fromEnvelope $ fEnvelope form)
   `atop`
   form
+
+debugWithSize :: Form -> Form
+debugWithSize form@(Form (Envelope left _ _ bottom) _) =
+  noEnvelope (moved (left, bottom) $ text monoStyle $ "width : " ++ show w ++ "\nheight: " ++ show h)
+  `atop`
+  debugEnvelope form
+  where
+    w = formWidth form
+    h = formHeight form
+    monoStyle = defaultTextStyle { fontFamily = "Monospace", fontSize = 8 }
+
+measureVert :: Form -> (Double, Double)
+measureVert (Form env _) = (envToTop env, envToBottom env)
+
+measureHoriz :: Form -> (Double, Double)
+measureHoriz (Form env _) = (envToLeft env, envToRight env)
+
+formHeight :: Form -> Double
+formHeight form = uncurry (flip (-)) $ measureVert form
+
+formWidth :: Form -> Double
+formWidth form = uncurry (flip (-)) $ measureHoriz form

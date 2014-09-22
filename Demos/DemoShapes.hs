@@ -15,7 +15,7 @@ createTitleImage :: Form -> IO ()
 createTitleImage form = makeSvg form "titleImage.svg"
 
 picture :: Form
-picture = groupBy toBottom [
+picture = debugWithSize $ groupBy toBottom [
   centered $ text defaultTextStyle "groupBy toRight",
   debugEnvelope $ padded 4 $ groupBy toRight [ orangeCircle, greenRectangle ],
   centered $ text defaultTextStyle "groupBy toLeft",
