@@ -19,7 +19,7 @@ data LineStyle = LineStyle {
   color :: Color,
   lineWidth :: Double,
   cap :: LineCap,
-  join :: LineJoin,
+  lineJoin :: LineJoin,
   dash :: [Double],
   dashOffset :: Double
 } deriving (Show, Eq)
@@ -29,7 +29,7 @@ defaultLineStyle = LineStyle {
   color = (0, 0, 0),
   lineWidth = 1,
   cap = Padded,
-  join = Sharp,
+  lineJoin = Sharp,
   dash = [],
   dashOffset = 0
 }
@@ -91,7 +91,7 @@ applyLineStyle style = do
   Cairo.setSourceRGB r g b
   Cairo.setLineWidth $ lineWidth style
   Cairo.setLineCap $ convertLineCap $ cap style
-  Cairo.setLineJoin $ convertLineJoin $ join style
+  Cairo.setLineJoin $ convertLineJoin $ lineJoin style
   Cairo.setDash (dash style) (dashOffset style)
   where
     (r, g, b) = color style

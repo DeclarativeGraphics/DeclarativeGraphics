@@ -2,7 +2,7 @@ module Graphics.Declarative.Internal.Primitive where
 
 import qualified Graphics.Rendering.Cairo as Cairo
 
-data Primitive 
+data Primitive
   = Arc { xc :: Double, yc :: Double, radius :: Double, startAngle :: Double, endAngle :: Double }
   | ArcNeg { xc :: Double, yc :: Double, radius :: Double, startAngle :: Double, endAngle :: Double }
   | Rectangle { rx :: Double, ry :: Double, width :: Double, height :: Double }
@@ -19,21 +19,21 @@ data PathOp
   deriving (Show, Eq)
 
 renderPrim :: Primitive -> Cairo.Render ()
-renderPrim (Arc xc yc radius startAngle endAngle)    = Cairo.arc xc yc radius startAngle endAngle
-renderPrim (ArcNeg xc yc radius startAngle endAngle) = Cairo.arcNegative xc yc radius startAngle endAngle
-renderPrim (Rectangle x y w h)                       = Cairo.rectangle x y w h
-renderPrim (Path operations)                         = renderPath operations
+renderPrim (Arc arcXc arcYc arcRadius arcStartAngle arcEndAngle)    = Cairo.arc arcXc arcYc arcRadius arcStartAngle arcEndAngle
+renderPrim (ArcNeg arcXc arcYc arcRadius arcStartAngle arcEndAngle) = Cairo.arcNegative arcXc arcYc arcRadius arcStartAngle arcEndAngle
+renderPrim (Rectangle posx posy w h)                                = Cairo.rectangle posx posy w h
+renderPrim (Path operations)                                        = renderPath operations
 
 renderPrimitives :: [Primitive] -> Cairo.Render ()
 renderPrimitives = mapM_ renderPrim
 
 renderPathOp :: PathOp -> Cairo.Render ()
-renderPathOp (CurveTo x1 y1 x2 y2 x3 y3)          = Cairo.curveTo x1 y1 x2 y2 x3 y3
-renderPathOp (RelCurveTo dx1 dy1 dx2 dy2 dx3 dy3) = Cairo.relCurveTo dx1 dy1 dx2 dy2 dx3 dy3
-renderPathOp (LineTo x y)                         = Cairo.lineTo x y
-renderPathOp (RelLineTo dx dy)                    = Cairo.relLineTo dx dy
-renderPathOp (MoveTo x y)                         = Cairo.moveTo x y
-renderPathOp (RelMoveTo dx dy)                    = Cairo.relMoveTo dx dy
+renderPathOp (CurveTo cx1 cy1 cx2 cy2 cx3 cy3)          = Cairo.curveTo cx1 cy1 cx2 cy2 cx3 cy3
+renderPathOp (RelCurveTo cdx1 cdy1 cdx2 cdy2 cdx3 cdy3) = Cairo.relCurveTo cdx1 cdy1 cdx2 cdy2 cdx3 cdy3
+renderPathOp (LineTo posx posy)                         = Cairo.lineTo posx posy
+renderPathOp (RelLineTo cdx cdy)                        = Cairo.relLineTo cdx cdy
+renderPathOp (MoveTo mx posy)                           = Cairo.moveTo mx posy
+renderPathOp (RelMoveTo mdx mdy)                        = Cairo.relMoveTo mdx mdy
 
 renderPath :: [PathOp] -> Cairo.Render ()
 renderPath = mapM_ renderPathOp
