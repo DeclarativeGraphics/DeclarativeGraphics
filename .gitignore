@@ -1,3 +1,4 @@
 /dist
 /LICENSE
 /.cabal-sandbox
+/cabal.sandbox.config
