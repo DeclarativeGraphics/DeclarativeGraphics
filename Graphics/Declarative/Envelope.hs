@@ -20,8 +20,11 @@ envelopeCenteredCircle radius = Envelope (-radius) (-radius) radius radius
 moveEnvelope :: (Double, Double) -> Envelope -> Envelope
 moveEnvelope (x, y) (Envelope l t r b) = Envelope (l+x) (t+y) (r+x) (b+y)
 
-envelopeSize :: Envelope -> (Double, Double)
-envelopeSize (Envelope l t r b) = (r-l, b-t)
+sizeEnvelope :: Envelope -> (Double, Double)
+sizeEnvelope (Envelope l t r b) = (r-l, b-t)
 
-envelopeAtop :: Envelope -> Envelope -> Envelope
-envelopeAtop (Envelope l1 t1 r1 b1) (Envelope l2 t2 r2 b2) = Envelope (min l1 l2) (min t1 t2) (max r1 r2) (max b1 b2)
+atopEnvelope :: Envelope -> Envelope -> Envelope
+atopEnvelope (Envelope l1 t1 r1 b1) (Envelope l2 t2 r2 b2) = Envelope (min l1 l2) (min t1 t2) (max r1 r2) (max b1 b2)
+
+paddedWithEnvelope :: (Double, Double, Double, Double) -> Envelope -> Envelope
+paddedWithEnvelope (padLeft, padTop, padRight, padBottom) (Envelope l t r b)= Envelope (l-padLeft) (t-padTop) (r+padRight) (b+padBottom)
