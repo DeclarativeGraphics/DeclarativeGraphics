@@ -3,8 +3,8 @@
 This code:
 
 ```haskell
-picture :: Form
-picture = groupBy toBottom [
+picture :: CairoEGraphic
+picture = attachRight [
   centered $ text defaultTextStyle "groupBy toRight",
   debugEnvelope $ padded 4 $ groupBy toRight [ orangeCircle, greenRectangle ],
   centered $ text defaultTextStyle "groupBy toLeft",
@@ -22,6 +22,11 @@ Produces this Image:
 The aim is to create a functional, declarative Shape rendering library. It also features Text rendering.
 
 ## Libraries used
+
+No libraries are required for using code from this repository,
+but you need a backend, and currently only a [cairo 
+backend](https://github.com/matheus23/DeclarativeGraphics-Cairo)
+exists. That backend uses the libraries:
 
 * Cairo: Rendering Backend for Shapes
 * Pango: Rendering Backend for Text

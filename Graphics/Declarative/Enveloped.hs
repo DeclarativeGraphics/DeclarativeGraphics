@@ -7,6 +7,8 @@ type EGraphic b = Enveloped (Graphic b)
 
 data Enveloped a = Pack Envelope a
 
+unpackEnveloped :: Enveloped a -> a
+unpackEnveloped (Pack _ a) = a
 
 getEnvelope :: Enveloped a -> Envelope
 getEnvelope (Pack e _) = e
