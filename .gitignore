@@ -2,3 +2,4 @@
 /LICENSE
 /.cabal-sandbox
 /cabal.sandbox.config
+.*.sw*
