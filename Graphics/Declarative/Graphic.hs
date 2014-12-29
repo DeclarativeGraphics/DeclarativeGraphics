@@ -1,20 +1,19 @@
 module Graphics.Declarative.Graphic where
 
-import Graphics.Declarative.Envelope
+type Offset = (Double, Double)
+type MoveFunc backend = Offset -> backend -> backend
+type AtopFunc backend = backend -> backend -> backend
 
-type RGB = (Double, Double, Double)
+newtype Graphic backend = Graphic (MoveFunc backend -> AtopFunc backend -> backend)
 
-data Graphic backend
-  = Leaf backend
-  | Moved (Double, Double) (Graphic backend)
-  | Atop (Graphic backend) (Graphic backend)
-  | Empty
+renderGraphic :: MoveFunc backend -> AtopFunc backend -> Graphic backend -> backend
+renderGraphic move atop (Graphic renderer) = renderer move atop
 
--- BUILDING Graphics:
+primitive :: backend -> Graphic backend
+primitive prim = Graphic $ \ move atop -> prim
 
-moveGraphic :: (Double, Double) -> Graphic b -> Graphic b
-moveGraphic (x, y) (Moved (px, py) g) = Moved (px+x, py+y) g
-moveGraphic amount g = Moved amount g
+move :: Offset -> Graphic backend -> Graphic backend
+move offset graphic = Graphic $ \ move atop -> move offset (renderGraphic move atop graphic)
 
-atopGraphics :: Graphic b -> Graphic b -> Graphic b
-atopGraphics = Atop
+atop :: Graphic backend -> Graphic backend -> Graphic backend
+atop upper lower    = Graphic $ \ move atop -> atop (renderGraphic move atop upper) (renderGraphic move atop lower)

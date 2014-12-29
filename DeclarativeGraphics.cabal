@@ -16,8 +16,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Graphics.Declarative.Graphic, Graphics.Declarative.Envelope,
-                       Graphics.Declarative.Enveloped
+  exposed-modules:     Graphics.Declarative.Graphic, Graphics.Declarative.Frame,
+                       Graphics.Declarative.Framed
   other-modules:
   build-depends:       base
   default-language:    Haskell2010
