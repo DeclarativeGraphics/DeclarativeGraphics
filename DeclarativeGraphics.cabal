@@ -18,6 +18,6 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Graphics.Declarative.Graphic, Graphics.Declarative.Border,
                        Graphics.Declarative.Bordered
-  other-modules:
+  other-modules:       VecMath
   build-depends:       base
   default-language:    Haskell2010
