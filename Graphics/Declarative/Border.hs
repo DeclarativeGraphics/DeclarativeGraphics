@@ -1,43 +1,49 @@
 module Graphics.Declarative.Border where
 
-import VecMath
+import Data.Vec2 as Vec2
 
-newtype Border = Border { query :: (Double, Double) -> Double }
+newtype Border = Border { borderDistance :: Vec2 -> Double }
 
-rightBorderOffset :: Border -> Double
-rightBorderOffset (Border f) = f (1, 0)
+borderOffset :: Border -> Vec2 -> Vec2
+borderOffset border direction = scale (borderDistance border direction) direction
 
-leftBorderOffset :: Border -> Double
-leftBorderOffset (Border f) = - f (-1, 0)
-
-bottomBorderOffset :: Border -> Double
-bottomBorderOffset (Border f) = f (0, 1)
-
-topBorderOffset :: Border -> Double
-topBorderOffset (Border f) = - f (0, -1)
+borderSpanOnAxis :: Border -> Vec2 -> Vec2
+borderSpanOnAxis border axis = back `Vec2.to` forth
+  where
+    forth = borderOffset border axis
+    back  = borderOffset border (Vec2.negate axis)
 
 empty :: Border
 empty = Border (const 0)
 
-fromFrame :: (Double, Double, Double, Double) -> Border
-fromFrame (l, t, r, b) = Border
+getBoundingBox :: Border -> (Vec2, Vec2)
+getBoundingBox border = (add left top, add right bottom)
+  where
+    left   = borderOffset border Vec2.left
+    top    = borderOffset border Vec2.up
+    right  = borderOffset border Vec2.right
+    bottom = borderOffset border Vec2.down
+
+fromBoundingBox :: (Vec2, Vec2) -> Border
+fromBoundingBox ((l, t), (r, b)) = Border
     (\ direction -> maximum $ map (tangentDistance direction) corners)
   where
     corners = [ (x,y) | x <- [l,r], y <- [t,b] ]
 
+tangentDistance :: Vec2 -> Vec2 -> Double
 tangentDistance direction corner = direction `dot` corner
 
-circular :: Double -> Border
-circular radius = Border (const radius)
+circle :: Double -> Border
+circle radius = Border (const radius)
 
--- relative origin, within rectangular
-rectangular :: (Double, Double) -> Double -> Double -> Border
-rectangular (xorigin, yorigin) width height
-  = fromFrame (-width * xorigin,    -height * yorigin,
-               width * (1-xorigin), height * (1-yorigin))
+-- relative origin, within rectangle
+rectangle :: (Double, Double) -> Double -> Double -> Border
+rectangle (xorigin, yorigin) width height
+  = fromBoundingBox ((-width * xorigin,    -height * yorigin),
+                     (width * (1-xorigin), height * (1-yorigin)))
 
 -- Be careful! This doesn't magically move the Graphical Representation of the Form with it!
-move :: (Double, Double) -> Border -> Border
+move :: Vec2 -> Border -> Border
 move v (Border f) = Border (\q -> f q + v `dot` q) -- magic shit
 
 size :: Border -> (Double, Double)

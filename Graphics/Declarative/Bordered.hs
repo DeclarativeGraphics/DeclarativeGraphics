@@ -5,6 +5,9 @@ import Graphics.Declarative.Graphic (Graphic(..))
 import qualified Graphics.Declarative.Border as Border
 import qualified Graphics.Declarative.Graphic as Graphic
 
+import Data.Vec2 as Vec2
+import Utils
+
 data Bordered a = Bordered Border a
 
 noBorder :: graphic -> Bordered graphic
@@ -12,7 +15,7 @@ noBorder graphic = Bordered Border.empty graphic
 
 bordered :: (Double, Double) -> Double -> Double -> graphic -> Bordered graphic
 bordered origin width height graphic
-  = Bordered (Border.rectangular origin width height) graphic
+  = Bordered (Border.rectangle origin width height) graphic
 
 
 unborder :: Bordered a -> a
@@ -59,29 +62,31 @@ padded padding = onBorder (Border.padded padding)
 evenPadding padding = (padding, padding, padding, padding)
 directionalPadding horizontal vertical = (horizontal, vertical, vertical, horizontal)
 
+align :: Vec2 -> Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+align axis alignment graphic
+  = graphic |> move back
+            |> move (scale alignment wholeSpan)
+  where
+    back  = Border.borderOffset (getBorder graphic) (Vec2.negate axis)
+    wholeSpan = Border.borderSpanOnAxis (getBorder graphic) axis
 
-alignX :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
-alignX relX g@(Bordered border _) = move (relX * (l-r), 0) $ move (-l, 0) g
-  where l = Border.leftBorderOffset border
-        r = Border.rightBorderOffset border
+alignHoriz :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignHoriz = align Vec2.right
 
-alignY :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
-alignY relY g@(Bordered border _) = move (0, relY * (t-b)) $ move (0, -t) g
-  where t = Border.topBorderOffset border
-        b = Border.bottomBorderOffset border
+alignVert :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignVert = align Vec2.down
 
-align :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
-align (xalign, yalign) = alignX xalign . alignY yalign
+alignHV :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignHV (alignh, alignv) = alignHoriz alignh . alignVert alignv
 
+centeredHoriz :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredHoriz = alignHoriz 0.5
 
-centeredX :: Bordered (Graphic b) -> Bordered (Graphic b)
-centeredX = alignX 0.5
+centeredVert :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredVert = alignVert 0.5
 
-centeredY :: Bordered (Graphic b) -> Bordered (Graphic b)
-centeredY = alignY 0.5
-
-centered :: Bordered (Graphic b) -> Bordered (Graphic b)
-centered = centeredX . centeredY
+centeredHV :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredHV = centeredHoriz . centeredVert
 
 
 moveBesideWith :: (Border -> Border -> (Double, Double)) -> Bordered (Graphic b) -> Bordered (Graphic b) -> Bordered (Graphic b)
@@ -96,45 +101,16 @@ groupBy :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> B
 groupBy moveFunc forms = foldr1 combine forms
   where combine form1 form2 = form1 `atop` move (onBorder2 moveFunc form1 form2) form2
 
-
-toRight :: Border -> Border -> (Double, Double)
-toRight leftNeighbor rightNeighbor =
-  (Border.rightBorderOffset leftNeighbor - Border.leftBorderOffset rightNeighbor, 0)
-
-toLeft :: Border -> Border -> (Double, Double)
-toLeft rightNeighbor leftNeighbor =
-  (Border.leftBorderOffset rightNeighbor - Border.rightBorderOffset leftNeighbor, 0)
-
-toTop :: Border -> Border -> (Double, Double)
-toTop bottomNeighbor topNeighbor =
-  (0, Border.topBorderOffset bottomNeighbor - Border.bottomBorderOffset topNeighbor)
-
-toBottom :: Border -> Border -> (Double, Double)
-toBottom topNeighbor bottomNeighbor =
-  (0, Border.bottomBorderOffset topNeighbor - Border.topBorderOffset bottomNeighbor)
+displacementTo :: Vec2 -> Border -> Border -> Vec2
+displacementTo direction reference other
+  = Border.borderOffset reference direction `Vec2.to` Border.borderOffset other (Vec2.negate direction)
 
 
-appendRight :: [Bordered (Graphic b)] -> Bordered (Graphic b)
-appendRight = groupBy toRight
-
-appendLeft :: [Bordered (Graphic b)] -> Bordered (Graphic b)
-appendLeft = groupBy toLeft
-
-appendUp :: [Bordered (Graphic b)] -> Bordered (Graphic b)
-appendUp = groupBy toTop
-
-appendDown :: [Bordered (Graphic b)] -> Bordered (Graphic b)
-appendDown = groupBy toBottom
-
-
-topBottomBorderOffsets :: Bordered a -> (Double, Double)
-topBottomBorderOffsets (Bordered border _) = (Border.topBorderOffset border, Border.bottomBorderOffset border)
-
-leftRightBorderOffsets :: Bordered a -> (Double, Double)
-leftRightBorderOffsets (Bordered border _) = (Border.leftBorderOffset border, Border.rightBorderOffset border)
+append :: Vec2 -> [Bordered (Graphic b)] -> Bordered (Graphic b)
+append direction = groupBy (displacementTo direction)
 
 graphicHeight :: Bordered a -> Double
-graphicHeight = uncurry (flip (-)) . topBottomBorderOffsets
+graphicHeight graphic = Vec2.magnitude $ Border.borderSpanOnAxis (getBorder graphic) Vec2.down
 
 graphicWidth :: Bordered a -> Double
-graphicWidth = uncurry (flip (-)) . leftRightBorderOffsets
+graphicWidth graphic = Vec2.magnitude $ Border.borderSpanOnAxis (getBorder graphic) Vec2.right
