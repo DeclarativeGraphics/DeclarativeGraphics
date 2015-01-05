@@ -34,3 +34,15 @@ right = ( 1,  0)
 left  = (-1,  0)
 down  = ( 0,  1)
 up    = ( 0, -1)
+
+radians :: Double -> Double
+radians = id
+
+degrees :: Double -> Double
+degrees = (*) (pi / 180)
+
+rotateBy :: Double -> Vec2 -> Vec2
+rotateBy rad (x, y) = (x * c - y * s, x * s + y * c)
+  where
+    c = cos rad
+    s = sin rad

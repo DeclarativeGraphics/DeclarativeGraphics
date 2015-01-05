@@ -92,12 +92,12 @@ centeredHV :: Bordered (Graphic b) -> Bordered (Graphic b)
 centeredHV = centeredHoriz . centeredVert
 
 
-moveBesideWith :: (Border -> Border -> (Double, Double)) -> Bordered (Graphic b) -> Bordered (Graphic b) -> Bordered (Graphic b)
-moveBesideWith moveFunc refGraphic graphicToMove = move offset graphicToMove
+moveBesideBy :: (Border -> Border -> (Double, Double)) -> Bordered (Graphic b) -> Bordered (Graphic b) -> Bordered (Graphic b)
+moveBesideBy moveFunc refGraphic graphicToMove = move offset graphicToMove
   where offset = moveFunc (getBorder refGraphic) (getBorder graphicToMove)
 
-moveAllBesideWith :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> [Bordered (Graphic b)]
-moveAllBesideWith moveFunc forms = scanl1 combine forms
+moveAllBesideBy :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> [Bordered (Graphic b)]
+moveAllBesideBy moveFunc forms = scanl1 combine forms
   where combine form1 form2 = move (onBorder2 moveFunc form1 form2) form2
 
 groupBy :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> Bordered (Graphic b)
@@ -106,11 +106,13 @@ groupBy moveFunc forms = foldr1 combine forms
 
 displacementTo :: Vec2 -> Border -> Border -> Vec2
 displacementTo direction reference other
-  = Border.borderOffset reference direction `Vec2.to` Border.borderOffset other (Vec2.negate direction)
-
+  = Border.borderOffset other (Vec2.negate direction) `Vec2.to` Border.borderOffset reference direction
+  -- (Example: direction = Vec2.right:) Displace by the distance of the other's left Border + the distance to the reference's right border.
+  -- Think: Make the other's left border be on the reference's right border.
 
 append :: Vec2 -> [Bordered (Graphic b)] -> Bordered (Graphic b)
 append direction = groupBy (displacementTo direction)
+
 
 graphicHeight :: Bordered a -> Double
 graphicHeight graphic = Vec2.magnitude $ Border.borderSpanOnAxis (getBorder graphic) Vec2.down
