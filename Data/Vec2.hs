@@ -8,6 +8,9 @@ add (x1, y1) (x2, y2) = (x1+x2, y1+y2)
 sub :: Vec2 -> Vec2 -> Vec2
 sub (x1, y1) (x2, y2) = (x1-x2, y1-y2)
 
+mul :: (Double, Double) -> Vec2 -> Vec2
+mul (fx, fy) (x, y) = (fx*x, fy*y)
+
 to :: Vec2 -> Vec2 -> Vec2
 a `to` b = b `sub` a
 
@@ -21,6 +24,13 @@ magnitude :: Vec2 -> Double
 magnitude (x, y) = sqrt (x*x + y*y)
 
 normalize :: Vec2 -> Vec2
+normalize (0, 0) = (0, 0)
+normalize (x, 0)
+  | x > 0 = (1, 0)
+  | x < 0 = (-1, 0)
+normalize (0, x)
+  | x > 0 = (0, 1)
+  | x < 0 = (0, -1)
 normalize v@(a, b) = (a / m, b / m) where m = magnitude v
 
 scale :: Double -> Vec2 -> Vec2

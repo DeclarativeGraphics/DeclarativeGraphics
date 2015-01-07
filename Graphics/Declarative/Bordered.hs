@@ -49,6 +49,12 @@ liftBorder2 combineBorders combineGraphics (Bordered border1 graphic1) (Bordered
   = Bordered (combineBorders border1 border2) (combineGraphics graphic1 graphic2)
 
 
+rotate :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+rotate angle = liftBorder (Border.rotate angle) (Graphic.rotate angle)
+
+scale :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
+scale factors = liftBorder (Border.scale factors) (Graphic.scale factors)
+
 move :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
 move dist = liftBorder (Border.move dist) (Graphic.move dist)
 
@@ -60,7 +66,7 @@ atop = liftBorder2 Border.atop Graphic.atop
 
 
 padded :: Double -> Bordered a -> Bordered a
-padded padding = onBorder (Border.padded padding)
+padded padding = onBorder (Border.padded padding) -- padding does not change the graphic
 
 evenPadding padding = (padding, padding, padding, padding)
 directionalPadding horizontal vertical = (horizontal, vertical, vertical, horizontal)
@@ -68,7 +74,7 @@ directionalPadding horizontal vertical = (horizontal, vertical, vertical, horizo
 align :: Vec2 -> Double -> Bordered (Graphic b) -> Bordered (Graphic b)
 align axis alignment graphic
   = graphic |> moveOrigin back
-            |> moveOrigin (scale alignment wholeSpan)
+            |> moveOrigin (Vec2.scale alignment wholeSpan)
   where
     back  = Border.borderOffset (getBorder graphic) (Vec2.negate axis)
     wholeSpan = Border.borderSpanOnAxis (getBorder graphic) axis
