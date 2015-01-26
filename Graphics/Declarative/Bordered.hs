@@ -1,17 +1,27 @@
 module Graphics.Declarative.Bordered where
 
+import Graphics.Declarative.Physical2D
 import Graphics.Declarative.Border (Border(..))
 import Graphics.Declarative.Graphic (Graphic(..))
 import qualified Graphics.Declarative.Border as Border
 import qualified Graphics.Declarative.Graphic as Graphic
 
-import Data.Vec2 as Vec2
+import qualified Data.Vec2 as Vec2
+import Data.Vec2 (Vec2)
 import Utils
 
 data Bordered a = Bordered Border a
 
+instance Physical2D a => Physical2D (Bordered a) where
+  move offset = liftBorder (move offset) (move offset)
+  rotate angle = liftBorder (rotate angle) (rotate angle)
+  scale factors = liftBorder (scale factors) (scale factors)
+  atop = liftBorder2 atop atop
+  empty = Bordered empty empty
+
+
 noBorder :: graphic -> Bordered graphic
-noBorder graphic = Bordered Border.empty graphic
+noBorder graphic = Bordered empty graphic
 
 bordered :: (Double, Double) -> Double -> Double -> graphic -> Bordered graphic
 bordered origin width height graphic
@@ -28,10 +38,10 @@ setBorder :: Border -> Bordered a -> Bordered a
 setBorder e = onBorder $ const e
 
 collapseBorder :: Bordered a -> Bordered a
-collapseBorder = setBorder Border.empty
+collapseBorder = setBorder empty
 
-map :: (a -> b) -> (Bordered a -> Bordered b)
-map f (Bordered border a) = Bordered border (f a)
+mapInner :: (a -> b) -> (Bordered a -> Bordered b)
+mapInner f (Bordered border a) = Bordered border (f a)
 
 onBorder :: (Border -> Border) -> (Bordered a -> Bordered a)
 onBorder f (Bordered border a) = Bordered (f border) a
@@ -48,30 +58,10 @@ liftBorder2 :: (Border -> Border -> Border) -> (a -> b -> c) -> (Bordered a -> B
 liftBorder2 combineBorders combineGraphics (Bordered border1 graphic1) (Bordered border2 graphic2)
   = Bordered (combineBorders border1 border2) (combineGraphics graphic1 graphic2)
 
-
-rotate :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
-rotate angle = liftBorder (Border.rotate angle) (Graphic.rotate angle)
-
-scale :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
-scale factors = liftBorder (Border.scale factors) (Graphic.scale factors)
-
-move :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
-move dist = liftBorder (Border.move dist) (Graphic.move dist)
-
-moveOrigin :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
-moveOrigin = move . Vec2.negate
-
-atop :: Bordered (Graphic b) -> Bordered (Graphic b) -> Bordered (Graphic b)
-atop = liftBorder2 Border.atop Graphic.atop
-
-
 padded :: Double -> Bordered a -> Bordered a
 padded padding = onBorder (Border.padded padding) -- padding does not change the graphic
 
-evenPadding padding = (padding, padding, padding, padding)
-directionalPadding horizontal vertical = (horizontal, vertical, vertical, horizontal)
-
-align :: Vec2 -> Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+align :: Physical2D a => Vec2 -> Double -> Bordered a -> Bordered a
 align axis alignment graphic
   = graphic |> moveOrigin back
             |> moveOrigin (Vec2.scale alignment wholeSpan)
@@ -79,34 +69,34 @@ align axis alignment graphic
     back  = Border.borderOffset (getBorder graphic) (Vec2.negate axis)
     wholeSpan = Border.borderSpanOnAxis (getBorder graphic) axis
 
-alignHoriz :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignHoriz :: Physical2D a => Double -> Bordered a -> Bordered a
 alignHoriz = align Vec2.right
 
-alignVert :: Double -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignVert :: Physical2D a => Double -> Bordered a -> Bordered a
 alignVert = align Vec2.down
 
-alignHV :: (Double, Double) -> Bordered (Graphic b) -> Bordered (Graphic b)
+alignHV :: Physical2D a => (Double, Double) -> Bordered a -> Bordered a
 alignHV (alignh, alignv) = alignHoriz alignh . alignVert alignv
 
-centeredHoriz :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredHoriz :: Physical2D a => Bordered a -> Bordered a
 centeredHoriz = alignHoriz 0.5
 
-centeredVert :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredVert :: Physical2D a => Bordered a -> Bordered a
 centeredVert = alignVert 0.5
 
-centeredHV :: Bordered (Graphic b) -> Bordered (Graphic b)
+centeredHV :: Physical2D a => Bordered a -> Bordered a
 centeredHV = centeredHoriz . centeredVert
 
 
-moveBesideBy :: (Border -> Border -> (Double, Double)) -> Bordered (Graphic b) -> Bordered (Graphic b) -> Bordered (Graphic b)
+moveBesideBy :: Physical2D a => (Border -> Border -> (Double, Double)) -> Bordered a -> Bordered a -> Bordered a
 moveBesideBy moveFunc refGraphic graphicToMove = move offset graphicToMove
   where offset = moveFunc (getBorder refGraphic) (getBorder graphicToMove)
 
-moveAllBesideBy :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> [Bordered (Graphic b)]
+moveAllBesideBy :: Physical2D a => (Border -> Border -> (Double, Double)) -> [Bordered a] -> [Bordered a]
 moveAllBesideBy moveFunc forms = scanl1 combine forms
   where combine form1 form2 = move (onBorder2 moveFunc form1 form2) form2
 
-groupBy :: (Border -> Border -> (Double, Double)) -> [Bordered (Graphic b)] -> Bordered (Graphic b)
+groupBy :: Physical2D a => (Border -> Border -> (Double, Double)) -> [Bordered a] -> Bordered a
 groupBy moveFunc forms = foldr1 combine forms
   where combine form1 form2 = form1 `atop` move (onBorder2 moveFunc form1 form2) form2
 
@@ -116,7 +106,7 @@ displacementTo direction reference other
   -- (Example: direction = Vec2.right:) Displace by the distance of the other's left Border + the distance to the reference's right border.
   -- Think: Make the other's left border be on the reference's right border.
 
-append :: Vec2 -> [Bordered (Graphic b)] -> Bordered (Graphic b)
+append :: Physical2D a => Vec2 -> [Bordered a] -> Bordered a
 append direction = groupBy (displacementTo direction)
 
 
