@@ -16,4 +16,7 @@ class Physical2D a where
 
   atop :: a -> a -> a
 
+  atopAll :: [a] -> a
+  atopAll = foldl atop empty
+
   empty :: a

@@ -37,8 +37,8 @@ getBoundingBox border = (Vec2.add left top, Vec2.add right bottom)
 size :: Border -> (Double, Double)
 size (Border f) = (f Vec2.right + f Vec2.left, f Vec2.down + f Vec2.up)
 
-tangentDistance :: Vec2 -> Vec2 -> Double
-tangentDistance direction corner = direction `Vec2.dot` corner
+point :: Vec2 -> Border
+point pos = Border $ \q -> (q `Vec2.dot` pos) / (q `Vec2.dot` q)
 
 circle :: Double -> Border
 circle radius = Border $ \q -> radius / Vec2.magnitude q
@@ -50,7 +50,5 @@ rectangle (xorigin, yorigin) width height
                      (width * (1-xorigin), height * (1-yorigin)))
 
 fromBoundingBox :: (Vec2, Vec2) -> Border
-fromBoundingBox ((l, t), (r, b)) = Border $
-    \ direction -> maximum $ map (tangentDistance direction) corners
-  where
-    corners = [ (x,y) | x <- [l,r], y <- [t,b] ]
+fromBoundingBox ((l, t), (r, b)) = atopAll $ map point corners
+  where corners = [ (x,y) | x <- [l,r], y <- [t,b] ]
