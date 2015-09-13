@@ -62,9 +62,10 @@ padded :: Double -> Bordered a -> Bordered a
 padded padding = onBorder (Border.padded padding) -- padding does not change the graphic
 
 align :: Physical2D a => Vec2 -> Double -> Bordered a -> Bordered a
-align axis alignment graphic
-  = graphic |> moveOrigin back
-            |> moveOrigin (Vec2.scale alignment wholeSpan)
+align axis alignment graphic = graphic |> moveOrigin $ alignDisplacement axis alignment graphic
+
+alignDisplacement :: Vec2 -> Double -> Bordered a -> Vec2
+alignDisplacement axis alignment graphic = back `Vec2.add` Vec2.scale alignment wholeSpan
   where
     back  = Border.borderOffset (getBorder graphic) (Vec2.negate axis)
     wholeSpan = Border.borderSpanOnAxis (getBorder graphic) axis
