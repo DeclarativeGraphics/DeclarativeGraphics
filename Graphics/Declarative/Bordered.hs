@@ -8,7 +8,6 @@ import qualified Graphics.Declarative.Graphic as Graphic
 
 import qualified Data.Vec2 as Vec2
 import Data.Vec2 (Vec2)
-import Utils
 
 data Bordered a = Bordered Border a
 
@@ -62,7 +61,7 @@ padded :: Double -> Bordered a -> Bordered a
 padded padding = onBorder (Border.padded padding) -- padding does not change the graphic
 
 align :: Physical2D a => Vec2 -> Double -> Bordered a -> Bordered a
-align axis alignment graphic = graphic |> moveOrigin $ alignDisplacement axis alignment graphic
+align axis alignment graphic = moveOrigin $ alignDisplacement axis alignment graphic $ graphic
 
 alignDisplacement :: Vec2 -> Double -> Bordered a -> Vec2
 alignDisplacement axis alignment graphic = back `Vec2.add` Vec2.scale alignment wholeSpan
