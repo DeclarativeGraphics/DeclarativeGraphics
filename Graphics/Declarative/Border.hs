@@ -1,54 +1,78 @@
 module Graphics.Declarative.Border where
 
-import Graphics.Declarative.Physical2D
-import qualified Data.Vec2 as Vec2
-import Data.Vec2 (Vec2)
+import Graphics.Declarative.Classes
+import Linear hiding (translation, point)
 
-newtype Border = Border { borderDistance :: Vec2 -> Double }
+data Border
+  = Border { borderDistance :: V2 Double -> Double }
+  | Empty
 
-borderOffset :: Border -> Vec2 -> Vec2
-borderOffset border direction = Vec2.scale (borderDistance border direction) direction
+modifyDistFunc :: Border -> ((V2 Double -> Double) -> V2 Double -> Double) -> Border
+modifyDistFunc Empty         modifyFunc = Empty
+modifyDistFunc (Border func) modifyFunc = Border (modifyFunc func)
 
-borderSpanOnAxis :: Border -> Vec2 -> Vec2
-borderSpanOnAxis border axis = back `Vec2.to` forth
+borderOffset :: Border -> V2 Double -> V2 Double
+borderOffset Empty direction = V2 0 0
+borderOffset border direction = borderDistance border direction *^ direction
+
+borderSpanOnAxis :: Border -> V2 Double -> V2 Double
+borderSpanOnAxis Empty axis = V2 0 0
+borderSpanOnAxis border axis = forth - back
   where
     forth = borderOffset border axis
-    back  = borderOffset border (Vec2.negate axis)
+    back  = borderOffset border ((-1) *^ axis)
 
-instance Physical2D Border where
-  move v (Border f)            = Border $ \q -> f q + (v `Vec2.dot` q) / (q `Vec2.dot` q) -- magic shit
-  rotate angle (Border f)      = Border $ \q -> f (Vec2.rotateBy (-angle) q)
-  scale factors (Border f)     = Border $ \q -> f (Vec2.mul factors q)
+moveOriginTo :: V2 Double -> Border -> Border
+moveOriginTo u border =
+  modifyDistFunc border $ \f q -> f q - ((u ^/ (q `dot` q)) `dot` q)
+
+instance Transformable Border where
+  -- credit http://projects.haskell.org/diagrams/haddock/src/Diagrams-Core-Envelope.html#line-111
+  transformBy matrix border = moveOriginTo ((-1) *^ translation matrix) $
+      modifyDistFunc border $ \ f q ->
+        let v' = signorm $ transposeTransform matrix q
+            vi = inverseTransform matrix q
+         in f v' / (v' `dot` vi)
+
+instance Combinable Border where
+  atop a Empty = a
+  atop Empty a = a
   atop (Border f1) (Border f2) = Border $ \q -> max (f1 q) (f2 q)
-  empty                        = Border $ const 0
+
+  empty = Empty
+
+instance Show Border where
+  show Empty = "<empty border>"
+  show border = "<nonempty border, bounding box: " ++ show (getBoundingBox border) ++ ">"
+
 
 padded :: Double -> Border -> Border
-padded amount (Border f) = Border $ \q -> amount / Vec2.magnitude q + f q -- It's like adding a circle
+padded amount border = modifyDistFunc border $
+  \f q -> amount / norm q + f q -- It's like adding a circle
 
-
-getBoundingBox :: Border -> (Vec2, Vec2)
-getBoundingBox border = (Vec2.add left top, Vec2.add right bottom)
+getBoundingBox :: Border -> (V2 Double, V2 Double)
+getBoundingBox border = (leftOff + topOff, rightOff + bottomOff)
   where
-    left   = borderOffset border Vec2.left
-    top    = borderOffset border Vec2.up
-    right  = borderOffset border Vec2.right
-    bottom = borderOffset border Vec2.down
+    leftOff   = borderOffset border left
+    topOff    = borderOffset border up
+    rightOff  = borderOffset border right
+    bottomOff = borderOffset border down
 
 size :: Border -> (Double, Double)
-size (Border f) = (f Vec2.right + f Vec2.left, f Vec2.down + f Vec2.up)
+size border = (norm $ borderSpanOnAxis border right, norm $ borderSpanOnAxis border down)
 
-point :: Vec2 -> Border
-point pos = Border $ \q -> (q `Vec2.dot` pos) / (q `Vec2.dot` q)
+point :: V2 Double -> Border
+point pos = Border $ \q -> (q `dot` pos) / (q `dot` q)
 
 circle :: Double -> Border
-circle radius = Border $ \q -> radius / Vec2.magnitude q
+circle radius = Border $ \q -> radius / norm q
 
 -- relative origin, within rectangle
 rectangle :: (Double, Double) -> Double -> Double -> Border
 rectangle (xorigin, yorigin) width height
-  = fromBoundingBox ((-width * xorigin,    -height * yorigin),
-                     (width * (1-xorigin), height * (1-yorigin)))
+  = fromBoundingBox (V2 (-width * xorigin)    (-height * yorigin),
+                     V2 (width * (1-xorigin)) (height * (1-yorigin)))
 
-fromBoundingBox :: (Vec2, Vec2) -> Border
-fromBoundingBox ((l, t), (r, b)) = atopAll $ map point corners
-  where corners = [ (x,y) | x <- [l,r], y <- [t,b] ]
+fromBoundingBox :: (V2 Double, V2 Double) -> Border
+fromBoundingBox (V2 l t, V2 r b) = atopAll $ map point corners
+  where corners = [ V2 x y | x <- [l,r], y <- [t,b] ]

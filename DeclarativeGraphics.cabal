@@ -17,7 +17,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Graphics.Declarative.Graphic, Graphics.Declarative.Border,
-                       Graphics.Declarative.Bordered, Graphics.Declarative.Physical2D,
-                       Graphics.Declarative.Tracked, Data.Vec2
-  build-depends:       base, containers
+                       Graphics.Declarative.Bordered, Graphics.Declarative.Classes
+  build-depends:       base, containers, linear
   default-language:    Haskell2010
