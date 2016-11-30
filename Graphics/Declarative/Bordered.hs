@@ -11,6 +11,12 @@ import Data.Function ((&))
 
 data Bordered a = Bordered Border a
 
+class HasBorder a where
+  getBorder :: a -> Border
+
+instance HasBorder (Bordered a) where
+  getBorder = getBorderedBorder
+
 instance Transformable a => Transformable (Bordered a) where
   transformBy mat = liftBorder (transformBy mat) (transformBy mat)
 
@@ -29,8 +35,8 @@ bordered origin width height graphic
 unborder :: Bordered a -> a
 unborder (Bordered _ a) = a
 
-getBorder :: Bordered a -> Border
-getBorder (Bordered e _) = e
+getBorderedBorder :: Bordered a -> Border
+getBorderedBorder (Bordered e _) = e
 
 setBorder :: Border -> Bordered a -> Bordered a
 setBorder e = onBorder $ const e
@@ -44,9 +50,8 @@ mapInner f (Bordered border a) = Bordered border (f a)
 onBorder :: (Border -> Border) -> (Bordered a -> Bordered a)
 onBorder f (Bordered border a) = Bordered (f border) a
 
-onBorder2 :: (Border -> Border -> b) -> (Bordered a -> Bordered a -> b)
-onBorder2 f (Bordered border1 graphic1) (Bordered border2 graphic2)
-  = f border1 border2
+onBorder2 :: HasBorder a => (Border -> Border -> b) -> (a -> a -> b)
+onBorder2 f hasBorder1 hasBorder2 = f (getBorder hasBorder1) (getBorder hasBorder2)
 
 liftBorder :: (Border -> Border) -> (a -> b) -> (Bordered a -> Bordered b)
 liftBorder onBorder onGraphic (Bordered border graphic)
@@ -59,43 +64,43 @@ liftBorder2 combineBorders combineGraphics (Bordered border1 graphic1) (Bordered
 padded :: Double -> Bordered a -> Bordered a
 padded padding = onBorder (Border.padded padding) -- padding does not change the graphic
 
-align :: Transformable a => V2 Double -> Double -> Bordered a -> Bordered a
+align :: (HasBorder a, Transformable a) => V2 Double -> Double -> a -> a
 align axis alignment graphic = graphic & moveOrigin (alignDisplacement axis alignment graphic)
 
-alignDisplacement :: V2 Double -> Double -> Bordered a -> V2 Double
+alignDisplacement :: HasBorder a => V2 Double -> Double -> a -> V2 Double
 alignDisplacement axis alignment graphic = back + alignment *^ wholeSpan
   where
     back  = Border.borderOffset (getBorder graphic) ((-1) *^ axis)
     wholeSpan = Border.borderSpanOnAxis (getBorder graphic) axis
 
-alignHoriz :: Transformable a => Double -> Bordered a -> Bordered a
+alignHoriz :: (HasBorder a, Transformable a) => Double -> a -> a
 alignHoriz = align right
 
-alignVert :: Transformable a => Double -> Bordered a -> Bordered a
+alignVert :: (HasBorder a, Transformable a) => Double -> a -> a
 alignVert = align down
 
-alignHV :: Transformable a => (Double, Double) -> Bordered a -> Bordered a
+alignHV :: (HasBorder a, Transformable a) => (Double, Double) -> a -> a
 alignHV (alignh, alignv) = alignHoriz alignh . alignVert alignv
 
-centeredHoriz :: Transformable a => Bordered a -> Bordered a
+centeredHoriz :: (HasBorder a, Transformable a) => a -> a
 centeredHoriz = alignHoriz 0.5
 
-centeredVert :: Transformable a => Bordered a -> Bordered a
+centeredVert :: (HasBorder a, Transformable a) => a -> a
 centeredVert = alignVert 0.5
 
-centeredHV :: Transformable a => Bordered a -> Bordered a
+centeredHV :: (HasBorder a, Transformable a) => a -> a
 centeredHV = centeredHoriz . centeredVert
 
 
-moveBesideBy :: Transformable a => (Border -> Border -> V2 Double) -> Bordered a -> Bordered a -> Bordered a
+moveBesideBy :: (HasBorder ref, HasBorder a, Transformable a) => (Border -> Border -> V2 Double) -> ref -> a -> a
 moveBesideBy moveFunc refGraphic graphicToMove = move offset graphicToMove
   where offset = moveFunc (getBorder refGraphic) (getBorder graphicToMove)
 
-moveAllBesideBy :: Transformable a => (Border -> Border -> V2 Double) -> [Bordered a] -> [Bordered a]
+moveAllBesideBy :: (HasBorder a, Transformable a) => (Border -> Border -> V2 Double) -> [a] -> [a]
 moveAllBesideBy moveFunc forms = scanl1 combine forms
   where combine form1 form2 = move (onBorder2 moveFunc form1 form2) form2
 
-groupBy :: (Transformable a, Combinable a) => (Border -> Border -> V2 Double) -> [Bordered a] -> Bordered a
+groupBy :: (HasBorder a, Transformable a, Combinable a) => (Border -> Border -> V2 Double) -> [a] -> a
 groupBy moveFunc forms = foldr1 combine forms
   where combine form1 form2 = form1 `atop` move (onBorder2 moveFunc form1 form2) form2
 
@@ -105,15 +110,15 @@ displacementTo direction reference other
   -- (Example: direction = right:) Displace by the distance of the other's left Border + the distance to the reference's right border.
   -- Think: Make the other's left border be on the reference's right border.
 
-appendTo :: (Transformable a, Combinable a) => V2 Double -> [Bordered a] -> Bordered a
+appendTo :: (HasBorder a, Transformable a, Combinable a) => V2 Double -> [a] -> a
 appendTo direction = groupBy (displacementTo direction)
 
-placedBesidesTo :: Transformable a => V2 Double -> [Bordered a] -> [Bordered a]
+placedBesidesTo :: (HasBorder a, Transformable a) => V2 Double -> [a] -> [a]
 placedBesidesTo direction = moveAllBesideBy (displacementTo direction)
 
 
-graphicHeight :: Bordered a -> Double
+graphicHeight :: HasBorder a => a -> Double
 graphicHeight graphic = norm $ Border.borderSpanOnAxis (getBorder graphic) down
 
-graphicWidth :: Bordered a -> Double
+graphicWidth :: HasBorder a => a -> Double
 graphicWidth graphic = norm $ Border.borderSpanOnAxis (getBorder graphic) right
