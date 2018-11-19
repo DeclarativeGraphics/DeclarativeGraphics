@@ -2,7 +2,7 @@
 --  documentation, see http://haskell.org/cabal/users-guide/
 
 name:                DeclarativeGraphics
-version:             0.1.0.0
+version:             0.2.0.0
 -- synopsis:
 -- description:
 -- license:
@@ -17,6 +17,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Graphics.Declarative.Graphic, Graphics.Declarative.Border,
-                       Graphics.Declarative.Bordered, Graphics.Declarative.Classes
+                       Graphics.Declarative.Bordered, Graphics.Declarative.Transforms
   build-depends:       base, containers, linear
   default-language:    Haskell2010

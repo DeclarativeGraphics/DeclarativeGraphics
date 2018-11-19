@@ -1,4 +1,4 @@
-module Graphics.Declarative.Classes where
+module Graphics.Declarative.Transforms where
 
 import Linear
 
@@ -52,12 +52,3 @@ left  = V2 (-1)  0
 right = V2   1   0
 up    = V2   0 (-1)
 down  = V2   0   1
-
-
--- its NOT a monoid! atop is NOT ASSOCIATIVE
-class Combinable a where
-  atop :: a -> a -> a
-  empty :: a
-
-atopAll :: Combinable a => [a] -> a
-atopAll = foldl atop empty

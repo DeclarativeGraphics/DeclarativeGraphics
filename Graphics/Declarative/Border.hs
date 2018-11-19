@@ -1,6 +1,6 @@
 module Graphics.Declarative.Border where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Linear hiding (translation, point)
 
 data Border
@@ -34,17 +34,13 @@ instance Transformable Border where
             vi = inverseTransform matrix q
          in f v' / (v' `dot` vi)
 
-instance Combinable Border where
-  atop a Empty = a
-  atop Empty a = a
-  atop (Border f1) (Border f2) = Border $ \q -> max (f1 q) (f2 q)
+instance Semigroup Border where
+  a <> Empty = a
+  Empty <> a = a
+  (Border f1) <> (Border f2) = Border $ \q -> max (f1 q) (f2 q)
 
-  empty = Empty
-
-instance Show Border where
-  show Empty = "<empty border>"
-  show border = "<nonempty border, bounding box: " ++ show (getBoundingBox border) ++ ">"
-
+instance Monoid Border where
+  mempty = Empty
 
 padded :: Double -> Border -> Border
 padded amount border = modifyDistFunc border $
@@ -74,5 +70,5 @@ rectangle (xorigin, yorigin) width height
                      V2 (width * (1-xorigin)) (height * (1-yorigin)))
 
 fromBoundingBox :: (V2 Double, V2 Double) -> Border
-fromBoundingBox (V2 l t, V2 r b) = atopAll $ map point corners
+fromBoundingBox (V2 l t, V2 r b) = mconcat $ map point corners
   where corners = [ V2 x y | x <- [l,r], y <- [t,b] ]

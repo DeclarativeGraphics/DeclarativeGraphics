@@ -1,6 +1,6 @@
 module Graphics.Declarative.Bordered where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Border (Border(..))
 import Graphics.Declarative.Graphic (Graphic(..))
 import qualified Graphics.Declarative.Border as Border
@@ -20,12 +20,14 @@ instance HasBorder (Bordered a) where
 instance Transformable a => Transformable (Bordered a) where
   transformBy mat = liftBorder (transformBy mat) (transformBy mat)
 
-instance Combinable a => Combinable (Bordered a) where
-  atop = liftBorder2 atop atop
-  empty = Bordered empty empty
+instance Semigroup a => Semigroup (Bordered a) where
+  (<>) = liftBorder2 (<>) (<>)
+
+instance Monoid a => Monoid (Bordered a) where
+  mempty = noBorder mempty
 
 noBorder :: graphic -> Bordered graphic
-noBorder graphic = Bordered empty graphic
+noBorder graphic = Bordered mempty graphic
 
 bordered :: (Double, Double) -> Double -> Double -> graphic -> Bordered graphic
 bordered origin width height graphic
@@ -42,7 +44,7 @@ setBorder :: Border -> Bordered a -> Bordered a
 setBorder e = onBorder $ const e
 
 collapseBorder :: Bordered a -> Bordered a
-collapseBorder = setBorder empty
+collapseBorder = setBorder mempty
 
 mapInner :: (a -> b) -> (Bordered a -> Bordered b)
 mapInner f (Bordered border a) = Bordered border (f a)
@@ -100,9 +102,9 @@ moveAllBesideBy :: (HasBorder a, Transformable a) => (Border -> Border -> V2 Dou
 moveAllBesideBy moveFunc forms = scanl1 combine forms
   where combine form1 form2 = move (onBorder2 moveFunc form1 form2) form2
 
-groupBy :: (HasBorder a, Transformable a, Combinable a) => (Border -> Border -> V2 Double) -> [a] -> a
+groupBy :: (HasBorder a, Transformable a, Monoid a) => (Border -> Border -> V2 Double) -> [a] -> a
 groupBy moveFunc forms = foldr1 combine forms
-  where combine form1 form2 = form1 `atop` move (onBorder2 moveFunc form1 form2) form2
+  where combine form1 form2 = form1 <> move (onBorder2 moveFunc form1 form2) form2
 
 displacementTo :: V2 Double -> Border -> Border -> V2 Double
 displacementTo direction reference other
@@ -110,7 +112,7 @@ displacementTo direction reference other
   -- (Example: direction = right:) Displace by the distance of the other's left Border + the distance to the reference's right border.
   -- Think: Make the other's left border be on the reference's right border.
 
-appendTo :: (HasBorder a, Transformable a, Combinable a) => V2 Double -> [a] -> a
+appendTo :: (HasBorder a, Transformable a, Monoid a) => V2 Double -> [a] -> a
 appendTo direction = groupBy (displacementTo direction)
 
 placedBesidesTo :: (HasBorder a, Transformable a) => V2 Double -> [a] -> [a]
