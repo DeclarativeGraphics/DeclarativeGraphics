@@ -99,11 +99,11 @@ moveBesideBy moveFunc refGraphic graphicToMove = move offset graphicToMove
   where offset = moveFunc (getBorder refGraphic) (getBorder graphicToMove)
 
 moveAllBesideBy :: (HasBorder a, Transformable a) => (Border -> Border -> V2 Double) -> [a] -> [a]
-moveAllBesideBy moveFunc forms = scanl1 combine forms
+moveAllBesideBy moveFunc = scanl1 combine -- TODO: Don't use partial functions
   where combine form1 form2 = move (onBorder2 moveFunc form1 form2) form2
 
 groupBy :: (HasBorder a, Transformable a, Monoid a) => (Border -> Border -> V2 Double) -> [a] -> a
-groupBy moveFunc forms = foldr1 combine forms
+groupBy moveFunc = foldr combine mempty
   where combine form1 form2 = form1 <> move (onBorder2 moveFunc form1 form2) form2
 
 displacementTo :: V2 Double -> Border -> Border -> V2 Double
