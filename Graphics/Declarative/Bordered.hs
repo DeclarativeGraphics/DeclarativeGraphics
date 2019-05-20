@@ -9,8 +9,6 @@ import qualified Graphics.Declarative.Graphic as Graphic
 import Linear
 import Data.Function ((&))
 
-import Data.Semigroup.Compat
-
 
 data Bordered a = Bordered Border a
 
@@ -23,11 +21,9 @@ instance HasBorder (Bordered a) where
 instance Transformable a => Transformable (Bordered a) where
   transformBy mat = liftBorder (transformBy mat) (transformBy mat)
 
-instance Semigroup a => Semigroup (Bordered a) where
-  (<>) = liftBorder2 (<>) (<>)
-
 instance Monoid a => Monoid (Bordered a) where
   mempty = noBorder mempty
+  mappend = liftBorder2 mappend mappend
 
 noBorder :: graphic -> Bordered graphic
 noBorder graphic = Bordered mempty graphic
@@ -107,7 +103,7 @@ moveAllBesideBy moveFunc = scanl1 combine -- TODO: Don't use partial functions
 
 groupBy :: (HasBorder a, Transformable a, Monoid a) => (Border -> Border -> V2 Double) -> [a] -> a
 groupBy moveFunc = foldr combine mempty
-  where combine form1 form2 = form1 <> move (onBorder2 moveFunc form1 form2) form2
+  where combine form1 form2 = form1 `mappend` move (onBorder2 moveFunc form1 form2) form2
 
 displacementTo :: V2 Double -> Border -> Border -> V2 Double
 displacementTo direction reference other

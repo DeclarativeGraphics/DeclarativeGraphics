@@ -3,8 +3,6 @@ module Graphics.Declarative.Graphic where
 import Graphics.Declarative.Transforms
 import Linear
 
-import Data.Semigroup.Compat
-
 
 type TransformFunc backend = M33 Double -> backend -> backend
 type AtopFunc backend = backend -> backend -> backend
@@ -20,8 +18,6 @@ primitive prim = Graphic $ \ transform atop empty -> prim
 instance Transformable (Graphic a) where
   transformBy mat graphic = Graphic $ \ transform atop empty -> transform mat (renderGraphic transform atop empty graphic)
 
-instance Semigroup (Graphic a) where
-  upper <> lower = Graphic $ \ transform atop empty -> atop (renderGraphic transform atop empty upper) (renderGraphic transform atop empty lower)
-
 instance Monoid (Graphic a) where
   mempty = Graphic $ \ transform atop empty -> empty
+  mappend upper lower = Graphic $ \ transform atop empty -> atop (renderGraphic transform atop empty upper) (renderGraphic transform atop empty lower)

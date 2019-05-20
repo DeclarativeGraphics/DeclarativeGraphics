@@ -2,7 +2,6 @@ module Graphics.Declarative.Border where
 
 import Graphics.Declarative.Transforms
 import Linear hiding (translation, point)
-import Data.Semigroup.Compat
 
 
 data Border
@@ -36,13 +35,11 @@ instance Transformable Border where
             vi = inverseTransform matrix q
          in f v' / (v' `dot` vi)
 
-instance Semigroup Border where
-  a <> Empty = a
-  Empty <> a = a
-  (Border f1) <> (Border f2) = Border $ \q -> max (f1 q) (f2 q)
-
 instance Monoid Border where
   mempty = Empty
+  mappend a Empty = a
+  mappend Empty a = a
+  mappend (Border f1) (Border f2) = Border $ \q -> max (f1 q) (f2 q)
 
 padded :: Double -> Border -> Border
 padded amount border = modifyDistFunc border $
