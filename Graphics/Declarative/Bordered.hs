@@ -9,6 +9,9 @@ import qualified Graphics.Declarative.Graphic as Graphic
 import Linear
 import Data.Function ((&))
 
+import Data.Semigroup.Compat
+
+
 data Bordered a = Bordered Border a
 
 class HasBorder a where

@@ -1,9 +1,21 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Graphics.Declarative.Transforms where
 
 import Linear
 
 class Transformable a where
   transformBy :: M33 Double -> a -> a
+
+instance Transformable (V3 Double) where
+  transformBy matrix vec = matrix !* vec
+
+instance Transformable (V2 Double) where
+  transformBy matrix (V2 x y) =
+    let
+      (V3 x' y' w) =
+        matrix !* V3 x y 1
+    in
+    V2 (x' / w) (y' / w)
 
 moveMatrix :: Num a => V2 a -> M33 a
 moveMatrix (V2 offsetx offsety) =
@@ -13,8 +25,8 @@ moveMatrix (V2 offsetx offsety) =
 
 scaleMatrix :: Num a => V2 a -> M33 a
 scaleMatrix (V2 scalex scaley) =
-  V3 (V3 1 0 scalex)
-     (V3 0 1 scaley)
+  V3 (V3 scalex 0 0)
+     (V3 0 scaley 0)
      (V3 0 0      1)
 
 rotateRadMatrix :: Floating a => a -> M33 a

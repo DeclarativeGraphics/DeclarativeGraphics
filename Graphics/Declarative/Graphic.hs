@@ -3,6 +3,9 @@ module Graphics.Declarative.Graphic where
 import Graphics.Declarative.Transforms
 import Linear
 
+import Data.Semigroup.Compat
+
+
 type TransformFunc backend = M33 Double -> backend -> backend
 type AtopFunc backend = backend -> backend -> backend
 

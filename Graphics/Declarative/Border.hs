@@ -2,6 +2,8 @@ module Graphics.Declarative.Border where
 
 import Graphics.Declarative.Transforms
 import Linear hiding (translation, point)
+import Data.Semigroup.Compat
+
 
 data Border
   = Border { borderDistance :: V2 Double -> Double }
